@@ -1,0 +1,1 @@
+[{"id":1,"priority":1,"action":{"type":"redirect","redirect":{"url":"data:,"}},"condition":{"urlFilter":"*://slither.io/*game*.js","resourceTypes":["script"]}}]
