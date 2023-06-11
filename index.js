@@ -144,36 +144,73 @@ Bot.prototype = {
     setRandomMovement: function(shouldRandomize) {
         this.shouldRandomize = shouldRandomize;
     },
-    
+
     spawn: function() {
-        var randomSkin = getRandomInt(9, 65);
-        var spawnBuf = new Uint8Array([115, 10, , 22, 20, 82, 97, 103, 101, 45, 66, 111, 116, 115, 46, 99, 111, 109, , , , , , , , , , , , , , , , , , , , , getRandomInt(0, 45), getRandomInt(0, 2), getRandomInt(0, 45), getRandomInt(0, 2), getRandomInt(0, 45), getRandomInt(0, 2), getRandomInt(0, 45), getRandomInt(0, 0), getRandomInt(0, 45), getRandomInt(0, 1)]);
+      
+        // Lê os nomes do arquivo Nomes.txt
+        const nomes = fs.readFileSync('Nomes.txt', 'utf8').split('\n');
+      
+        // Define o tamanho máximo dos nomes
+        const maxNameLength = 40;
+      
+        // Gera um nome aleatório a partir dos nomes disponíveis
+        const randomNameIndex = getRandomInt(0, nomes.length - 1);
+        let randomName = nomes[randomNameIndex].substr(0, maxNameLength).trim();
+      
+        // Adiciona espaços em branco ao nome para que ele tenha o comprimento máximo
+        randomName = randomName.padEnd(maxNameLength, ' ');
+      
+        // Remove caracteres especiais do nome
+        randomName = randomName.replace(/^\s+|\*\s*$/g, '');
+      
+        // Define a cor específica para todos os bots
+        const colors = [[255,255,255,0,0,0,255,255,15,2,9,9,8,2,16,9,41,2],
+[255,255,255,0,0,0,255,255,17,9,59,2,61,9,27,2],
+[255,255,255,0,0,0,255,255,8,2,1,9,1,2,17,9,30,2,10,9,12,2,1,9,42,2],
+[255,255,255,0,0,0,255,255,4,9,13,2,24,9,54,2,91,9],[255,255,255,0,0,0,255,255,7,2,46,9,121,2,70,9]];
+      
+        const colorIndices = {}; // Objeto para armazenar o índice da cor usada para cada nome
+        const nameBytes = randomName.split('').map((char) => char.charCodeAt(0));
+        
+        let colorIndex;
+        let colorBytes;
+      
+        if (randomName in colorIndices) { // Se o nome já foi usado antes, use o índice de cor armazenado em colorIndices
+          colorIndex = colorIndices[randomName];
+          colorBytes = colors[colorIndex];
+        } else { // Caso contrário, selecione um índice de cor aleatório para o nome
+          colorIndex = getRandomInt(0, colors.length - 1);
+          colorIndices[randomName] = colorIndex;
+          colorBytes = colors[colorIndex];
+        }
+      
+        const spawnBuf = new Uint8Array([115, 10, 20, 40, ...nameBytes, ...colorBytes]);
         this.send(spawnBuf);
     },
+      
     
-    getValue: function(originX, originY, targetX, targetY, shouldRandomize, predictionFactor, distance) {
-        if (shouldRandomize) {
-            var directions = [0,135,225];
-            var randomIndex = Math.floor(Math.random() * directions.length);
-            return directions[randomIndex];
-        }
 
-        var dx = targetX - originX;
-        var dy = targetY - originY;
-
-        var theta = Math.atan2(dy, dx);
-        theta *= 125 / Math.PI;
-        if (theta < 0) theta += 250;
-
-        return theta;
-    },
-
-
-
+        getValue: function(originX, originY, targetX, targetY, shouldRandomize) {
+            if (shouldRandomize) {
+              var directions = [0, 45, 90, 135, 180, 225];
+              var randomIndex = Math.floor(Math.random() * directions.length);
+              return directions[randomIndex];
+            }
+          
+            var dx = targetX - originX;
+            var dy = targetY - originY;
+          
+            var theta = Math.atan2(dy, dx);
+            theta *= 125 / Math.PI;
+            if (theta < 0) theta += 250;
+          
+            return theta;
+          },
+          
     moveTo: function(x, y) {
         var shouldRandomize = this.shouldRandomize;
-        var predictionFactor = 70.0; // Ajuste este valor para controlar a previsão (valores maiores = previsão maior)
-        var distance = 0; // Ajuste este valor para controlar a distância à frente da cobra (valores maiores = maior distância)
+        var predictionFactor = 0.0; // Ajuste este valor para controlar a previsão (valores maiores = previsão maior)
+        var distance = 50; // Ajuste este valor para controlar a distância à frente da cobra (valores maiores = maior distância)
         var value = this.getValue(this.snakeX, this.snakeY, x, y, shouldRandomize, predictionFactor, distance);
         this.snakeAngle = value;
 
@@ -188,7 +225,7 @@ Bot.prototype = {
         if (shouldRandomize) {
             [this.snakeX, this.snakeY] = getRandomCoordinates();
         } else {
-            var lerpFactor = 0.0; // Ajuste esse valor para controlar a suavidade da interpolação (valores maiores = movimentos mais suaves)
+            var lerpFactor = 0.1; // Ajuste esse valor para controlar a suavidade da interpolação (valores maiores = movimentos mais suaves)
 
             this.snakeX = lerp(this.snakeX, forwardX, lerpFactor);
             this.snakeY = lerp(this.snakeY, forwardY, lerpFactor);
@@ -389,7 +426,7 @@ Bot.prototype = {
                     var distance = Math.hypot(botX - newSnakeX, botY - newSnakeY);
             
                     // Interpolar a posição do bot
-                    var t = 0.3; 
+                    var t = 0.0; 
                     botX = botX + (newSnakeX - botX) * t;
                     botY = botY + (newSnakeY - botY) * t;
                 }
