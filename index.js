@@ -446,16 +446,22 @@ Bot.prototype = {
     function start() {
         for (var i in bots)
             bots[i].disconnect();
-    
+
         var i = 0;
         setInterval(function() {
             i++;
-            bots.push(new Bot(i));
+            var newBot = new Bot(i);
+            if (xPos !== undefined && yPos !== undefined) {
+                // If the destination coordinates are defined, move the new bot to this location.
+                newBot.moveTo(xPos, yPos);
+            }
+            bots.push(newBot);
         }, 3);
-    
+
         for (var i in bots)
             bots[i].connect();
     }
+
 
     let sendCountUpdate = function() {
         io.emit("botCount", connectedCount); // Emita para todos os clientes conectados
