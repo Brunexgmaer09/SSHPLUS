@@ -15,12 +15,16 @@ var isEPressed = false;
 let bots = [];
 let server = "";
 let origin = null;
-let xPos, yPos, byteLength = 0;
+let xPos, yPos, byteLength = 90;
 let connectedCount = 0;
 let botCount = 612;
 let client = null;
 let users = 0;
-
+let isZigZag = false; // Adicione uma nova variável para rastrear o estado do zigue-zague
+let isCPressed = false;
+let isBPressed = false;
+let fixedDirection = null;
+let globalFixedDirection = null;
 let proxies = fs.readFileSync("proxies.txt", "utf8").split("\n").filter(a => !!a);
 let Proxies = fs.readFileSync("httpProxy.txt", "utf8").split("\n").filter(a => !!a);
 
@@ -36,8 +40,6 @@ function getHost(a) {
     return a;
 }
 
-var isCPressed = false;
-
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
@@ -47,7 +49,6 @@ const rl = readline.createInterface({
 function lerp(a, b, t) {
     return a + (b - a) * t;
 }
-
 
 function createAgent(b) {
     let proxy = b.split(':');
@@ -76,6 +77,7 @@ function createHttpAgent(b) {
 function Bot(id) {
     this.id = id;
     this.connect();
+    this.fixedDirection = globalFixedDirection;
     this.isBoosting = false; // Adicione esta linha aqui
     this.shouldRandomize = false; // Adicione esta linha aqui
 }
@@ -147,34 +149,25 @@ Bot.prototype = {
 
     spawn: function() {
       
-        // Lê os nomes do arquivo Nomes.txt
         const nomes = fs.readFileSync('Nomes.txt', 'utf8').split('\n');
-      
-        // Define o tamanho máximo dos nomes
-        const maxNameLength = 40;
-      
-        // Gera um nome aleatório a partir dos nomes disponíveis
+        const maxNameLength = 40;      
         const randomNameIndex = getRandomInt(0, nomes.length - 1);
-        let randomName = nomes[randomNameIndex].substr(0, maxNameLength).trim();
-      
-        // Adiciona espaços em branco ao nome para que ele tenha o comprimento máximo
-        randomName = randomName.padEnd(maxNameLength, ' ');
-      
-        // Remove caracteres especiais do nome
-        randomName = randomName.replace(/^\s+|\*\s*$/g, '');
-      
+        let randomName = nomes[randomNameIndex].substr(0, maxNameLength).trim();   
+        randomName = randomName.padEnd(maxNameLength, ' ');     
+        randomName = randomName.replace(/^\s+|\*\s*$/g, '');    
         // Define a cor específica para todos os bots
-        const colors = [[255,255,255,0,0,0,255,255,15,2,9,9,8,2,16,9,41,2],
-[255,255,255,0,0,0,255,255,17,9,59,2,61,9,27,2],
-[255,255,255,0,0,0,255,255,8,2,1,9,1,2,17,9,30,2,10,9,12,2,1,9,42,2],
-[255,255,255,0,0,0,255,255,4,9,13,2,24,9,54,2,91,9],[255,255,255,0,0,0,255,255,7,2,46,9,121,2,70,9]];
-      
+        const colors = [[255,255,255,0,0,0,255,255,51,49,11,38,35,32,5,4],
+        [255,255,255,0,0,0,255,255,55,22,49,8,40,42,48,29],
+        [255,255,255,0,0,0,255,255,35,25,53,50,3,31,1,30],
+        [255,255,255,0,0,0,255,255,27,19,14,42,3,8,59,59],
+        [255,255,255,0,0,0,255,255,31,8,63,8,64,4,20,19],
+        [255,255,255,0,0,0,255,255,5,17,63,59,49,1,24,56],
+        [255,255,255,0,0,0,255,255,7,40,60,54,17,32,39,39],
+        [255,255,255,0,0,0,255,255,32,1,38,11,44,25,4,14]];      
         const colorIndices = {}; // Objeto para armazenar o índice da cor usada para cada nome
-        const nameBytes = randomName.split('').map((char) => char.charCodeAt(0));
-        
+        const nameBytes = randomName.split('').map((char) => char.charCodeAt(0));       
         let colorIndex;
-        let colorBytes;
-      
+        let colorBytes;      
         if (randomName in colorIndices) { // Se o nome já foi usado antes, use o índice de cor armazenado em colorIndices
           colorIndex = colorIndices[randomName];
           colorBytes = colors[colorIndex];
@@ -187,10 +180,24 @@ Bot.prototype = {
         const spawnBuf = new Uint8Array([115, 10, 20, 40, ...nameBytes, ...colorBytes]);
         this.send(spawnBuf);
     },
-      
-    
 
-        getValue: function(originX, originY, targetX, targetY, shouldRandomize) {
+    setZigZagMovement: function(shouldZigZag) {
+      isZigZag = shouldZigZag;
+      if (isZigZag) {
+        this.fixedDirection = null;  // reset the fixed direction
+        globalFixedDirection = null; // also reset the global fixed direction
+      } else {     
+        this.fixedDirection = this.snakeAngle;
+        globalFixedDirection = this.snakeAngle; // also store the global fixed direction
+      }
+    },
+
+
+    getValue: function(originX, originY, targetX, targetY, shouldRandomize) {
+        if (this.fixedDirection !== null) {
+        // If fixedDirection is set, use it
+        return this.fixedDirection;
+    }
             if (shouldRandomize) {
               var directions = [0, 45, 90, 135, 180, 225];
               var randomIndex = Math.floor(Math.random() * directions.length);
@@ -209,23 +216,22 @@ Bot.prototype = {
           
     moveTo: function(x, y) {
         var shouldRandomize = this.shouldRandomize;
-        var predictionFactor = 0.0; // Ajuste este valor para controlar a previsão (valores maiores = previsão maior)
-        var distance = 50; // Ajuste este valor para controlar a distância à frente da cobra (valores maiores = maior distância)
+        var predictionFactor = 0.0; 
+        var distance = 50; 
         var value = this.getValue(this.snakeX, this.snakeY, x, y, shouldRandomize, predictionFactor, distance);
-        this.snakeAngle = value;
+    this.snakeAngle = value;
 
         if (value < 0 || value > 250) {
             console.log("Error!");
         }
 
-        // Calcular a posição à frente da cobra
         var forwardX = this.snakeX + distance * Math.cos(value / 125 * Math.PI);
         var forwardY = this.snakeY + distance * Math.sin(value / 125 * Math.PI);
 
         if (shouldRandomize) {
             [this.snakeX, this.snakeY] = getRandomCoordinates();
         } else {
-            var lerpFactor = 0.1; // Ajuste esse valor para controlar a suavidade da interpolação (valores maiores = movimentos mais suaves)
+            var lerpFactor = 0.1;
 
             this.snakeX = lerp(this.snakeX, forwardX, lerpFactor);
             this.snakeY = lerp(this.snakeY, forwardY, lerpFactor);
@@ -457,7 +463,7 @@ Bot.prototype = {
         io.emit("botCount", connectedCount); // Emita para todos os clientes conectados
     };
 
-    setInterval(sendCountUpdate, 3000); // Inicie o intervalo aqui, fora do evento de conexão do socket
+    setInterval(sendCountUpdate, 3000); // Inicie o intervalo aqui
 
     io.on('connection', (socket) => {
         let address = socket.request.connection.remoteAddress;
@@ -473,7 +479,7 @@ Bot.prototype = {
       start();
       console.log('ServerIp: ' + server);
       console.log('Origin: ' + origin);
-      console.log('By Brunex');
+      console.log('Bots Iniciando');
     });
   
     socket.on('movement', (data) => {
@@ -488,6 +494,12 @@ Bot.prototype = {
         }
     });
 
+    socket.on('toggleZigZagMovement', () => {
+      isBPressed = !isBPressed;
+      bots.forEach((bot) => {
+        bot.setZigZagMovement(isBPressed);
+      });
+    });
 
     socket.on('toggleRandomMovement', () => {
       isCPressed = !isCPressed;
