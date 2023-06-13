@@ -180,7 +180,12 @@ Bot.prototype = {
       
         const spawnBuf = new Uint8Array([115, 10, 20, 40, ...nameBytes, ...colorBytes]);
         this.send(spawnBuf);
-    },
+        // Check if the target position is defined
+          if (targetXPos !== undefined && targetYPos !== undefined) {
+            // If so, move the new bot to this position
+            this.moveTo(targetXPos, targetYPos);
+          }
+        },
 
     setZigZagMovement: function(shouldZigZag) {
       isZigZag = shouldZigZag;
@@ -257,10 +262,12 @@ Bot.prototype = {
         connectedCount++;
         sendCountUpdate();
 
-        this.isBoosting = boostState[this.id] || false;
-        if (this.isBoosting) {
-            client.send(Buffer.from([254])); 
-        }
+      this.isBoosting = true;  
+      if (this.isBoosting) {
+        setInterval(() => {  
+          client.send(Buffer.from([254]));
+        }, 200);  
+      }  
     },
 
 
@@ -464,6 +471,14 @@ Bot.prototype = {
         for (var i in bots)
             bots[i].connect();
     }
+
+    
+    setInterval(function() {
+      if (xPos !== undefined && yPos !== undefined) {
+        targetXPos = xPos;
+        targetYPos = yPos;
+      }
+    }, 100);
 
 
     let sendCountUpdate = function() {
