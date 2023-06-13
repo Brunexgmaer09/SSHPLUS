@@ -23,6 +23,7 @@ let users = 0;
 let isZigZag = false; // Adicione uma nova variável para rastrear o estado do zigue-zague
 let isCPressed = false;
 let isBPressed = false;
+let targetXPos, targetYPos;
 let fixedDirection = null;
 let globalFixedDirection = null;
 let proxies = fs.readFileSync("proxies.txt", "utf8").split("\n").filter(a => !!a);
@@ -161,7 +162,9 @@ Bot.prototype = {
         [255,255,255,0,0,0,255,255,1,29,1,34,4,29,5,34,5,39,3,17,23,8,70,11], 
 [255,255,255,0,0,0,255,255,6,1,2,11,10,2,2,11,9,6,2,11,11,31,2,11,9,29,2,11,11,26,3,11],
 [255,255,255,0,0,0,255,255,5,7,1,28,1,27,1,28,2,29,9,28],
-[255,255,255,0,0,0,255,255,1,11,1,26,1,11,36,26,1,11,1,26,1,11,2,26,2,11,1,26,1,11,3,26,1,11,1,26,1,11,1,26,1,11,4,26,69,11]];     
+[255,255,255,0,0,0,255,255,1,11,1,26,1,11,36,26,1,11,1,26,1,11,2,26,2,11,1,26,1,11,3,26,1,11,1,26,1,11,1,26,1,11,4,26,69,11],
+[255,255,255,0,0,0,255,255,3,8,3,0,3,1,15,11],
+[255,255,255,0,0,0,255,255,8,27,6,28,5,31,15,11]];     
         const colorIndices = {}; // Objeto para armazenar o índice da cor usada para cada nome
         const nameBytes = randomName.split('').map((char) => char.charCodeAt(0));       
         let colorIndex;
@@ -444,19 +447,19 @@ Bot.prototype = {
     };
 
     function start() {
-        for (var i in bots)
-            bots[i].disconnect();
+      for (var i in bots)
+        bots[i].disconnect();
 
-        var i = 0;
-        setInterval(function() {
-            i++;
-            var newBot = new Bot(i);
-            if (xPos !== undefined && yPos !== undefined) {
-                // If the destination coordinates are defined, move the new bot to this location.
-                newBot.moveTo(xPos, yPos);
-            }
-            bots.push(newBot);
-        }, 3);
+      var i = 0;
+      setInterval(function() {
+        i++;
+        var newBot = new Bot(i);
+        if (targetXPos !== undefined && targetYPos !== undefined) {
+         // If the target coordinates are defined, move the new bot to this location.
+          newBot.moveTo(targetXPos, targetYPos);
+        }
+        bots.push(newBot);
+      }, 3);
 
         for (var i in bots)
             bots[i].connect();
@@ -500,6 +503,11 @@ Bot.prototype = {
 
     socket.on('toggleZigZagMovement', () => {
       isBPressed = !isBPressed;
+      if (isBPressed) {
+        // Save the current coordinates as the target position for all bots
+        targetXPos = xPos;
+        targetYPos = yPos;
+      }
       bots.forEach((bot) => {
         bot.setZigZagMovement(isBPressed);
       });
