@@ -256,19 +256,19 @@ Bot.prototype = {
             return;
         }
 
-        client = this;
-        this.send(Buffer.from([99]));
-        this.hasConnected = true;
-        connectedCount++;
-        sendCountUpdate();
+      client = this;  
+        this.send(Buffer.from([99]));  
+        this.hasConnected = true;  
+        connectedCount++;  
+        sendCountUpdate();  
 
-      this.isBoosting = true;  
-      if (this.isBoosting) {
-        setInterval(() => {  
-          client.send(Buffer.from([254]));
-        }, 200);  
-      }  
-    },
+      this.isBoosting = true; // Sempre defina isBoosting para verdadeiro quando um bot se conecta
+
+        // Use setInterval para enviar o código de boost a cada 800 milissegundos
+        setInterval(() => {
+          client.send(Buffer.from([254])); // Sempre tente ativar o boost para um bot quando ele se conecta
+        }, 800);
+      },
 
 
     onClose: function() {
@@ -325,17 +325,26 @@ Bot.prototype = {
     
     },
 
-    boostSpeed: function(shouldBoost) {
-        client = this;
-        this.isBoosting = shouldBoost;
-        boostState[this.id] = this.isBoosting;
+boostSpeed: function(shouldBoost) {
+  client = this;
+  this.isBoosting = shouldBoost;
+  boostState[this.id] = this.isBoosting;
 
-        if (this.isBoosting) {
-            client.send(Buffer.from([254]));
-        } else {
-            client.send(Buffer.from([253]));
-        }
-    },
+  // Limpe o intervalo existente, se houver um
+  if (this.boostIntervalId) {
+    clearInterval(this.boostIntervalId);
+    this.boostIntervalId = null;
+  }
+
+  if (this.isBoosting) {
+    this.boostIntervalId = setInterval(() => {
+      client.send(Buffer.from([254]));
+    }, 800);
+  } else {
+    client.send(Buffer.from([253]));
+  }
+},
+
 
     disconnect: function() {
         if (this.ws) this.ws.close();
