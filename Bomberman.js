@@ -8,7 +8,11 @@ Game.Game = function(game) {};
 
 Game.Game.prototype = {
 	
-	bfs: function(grid, start, goal) {
+    bfs: function(grid, start, goal) {
+        if (!grid || !start || !goal) {
+            console.error('Grid, start, or goal is undefined');
+            return null;
+        } 
     let queue = [[start]];
     let visited = new Set();
     while (queue.length > 0) {
@@ -63,7 +67,7 @@ findClosestEnemy: function() {
     let closestDistance = Infinity;
     this._enemies.forEach(enemy => {
         if (enemy) {
-            let distance = Phaser.Math.distance(this.player.x, this.player.y, enemy.x, enemy.y);
+            let distance = Phaser.Math.distance(this._bomberman.x, this._bomberman.y, enemy.x, enemy.y);
             if (distance < closestDistance) {
                 closestDistance = distance;
                 closestEnemy = enemy;
@@ -180,7 +184,7 @@ moveAlongPath: function(path) {
     this.moveAlongPath(path);
     let closestEnemy = this.findClosestEnemy();
     if (closestEnemy) {
-        let path = this.bfs(this.player.position, [closestEnemy.x, closestEnemy.y]);
+        let path = this.bfs(this._bomberman.position, [closestEnemy.x, closestEnemy.y]);
         this.moveAlongPath(path);
     }
     },
