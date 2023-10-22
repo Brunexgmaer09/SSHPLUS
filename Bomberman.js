@@ -57,18 +57,22 @@ isValid: function(node, grid) {
         this.createAutonomy();
         this.createEnemies();
     },
-    findClosestEnemy: function() {
+findClosestEnemy: function() {
+    if (!this.player) return null;  // Adiciona esta verificação aqui
     let closestEnemy = null;
     let closestDistance = Infinity;
-    this.enemies.forEach(enemy => {
-        let distance = Phaser.Math.distance(this.player.x, this.player.y, enemy.x, enemy.y);
-        if (distance < closestDistance) {
-            closestDistance = distance;
-            closestEnemy = enemy;
+    this._enemies.forEach(enemy => {
+        if (enemy) {
+            let distance = Phaser.Math.distance(this.player.x, this.player.y, enemy.x, enemy.y);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestEnemy = enemy;
+            }
         }
     });
     return closestEnemy;
 },
+
 
 // Dentro do objeto Game.Game.prototype
 moveAlongPath: function(path) {
@@ -173,12 +177,12 @@ moveAlongPath: function(path) {
     let path = this.bfs(this._map, start, goal);
     
     // Chama a função para mover o Bomberman ao longo do caminho
+    this.moveAlongPath(path);
     let closestEnemy = this.findClosestEnemy();
     if (closestEnemy) {
         let path = this.bfs(this.player.position, [closestEnemy.x, closestEnemy.y]);
         this.moveAlongPath(path);
     }
-},
     },
     
     render: function() {
