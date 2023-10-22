@@ -15,7 +15,7 @@ Game.Game.prototype = {
         let path = queue.shift();  // Pega o primeiro caminho da fila
         let node = path[path.length - 1];  // Pega o último nó do caminho
         if (node[0] === goal[0] && node[1] === goal[1]) return path;  // Checa se alcançou o objetivo
-        for (let neighbor of getNeighbors(node, grid)) {  // Para cada vizinho do nó
+        for (let neighbor of this.getNeighbors(node, grid)) {  // Para cada vizinho do nó
             let neighborStr = neighbor.toString();
             if (!visited.has(neighborStr)) {  // Se o vizinho não foi visitado
                 visited.add(neighborStr);  // Marca o vizinho como visitado
@@ -57,7 +57,36 @@ isValid: function(node, grid) {
         this.createAutonomy();
         this.createEnemies();
     },
-    
+// Dentro do objeto Game.Game.prototype
+moveAlongPath: function(path) {
+    if (path && path.length > 1) {
+        // Pega o próximo ponto no caminho (o primeiro da lista)
+        let nextPoint = path[1];
+        
+        // Calcula a direção para o próximo ponto
+        let dx = nextPoint[1] * 40 - this._bomberman.x;
+        let dy = nextPoint[0] * 40 - this._bomberman.y;
+        
+        // Normaliza o vetor de direção
+        let length = Math.sqrt(dx * dx + dy * dy);
+        let speed = 100;  // Velocidade de movimento (ajuste conforme necessário)
+        let vx = (dx / length) * speed;
+        let vy = (dy / length) * speed;
+        
+        // Define a velocidade do Bomberman para movê-lo na direção correta
+        this._bomberman.body.velocity.x = vx;
+        this._bomberman.body.velocity.y = vy;
+        
+        // Aqui você pode adicionar lógica para girar o Bomberman na direção certa, se necessário.
+        // Por exemplo, você pode usar this._bomberman.angle para ajustar a rotação.
+    } else {
+        // Se o caminho estiver vazio ou com apenas um ponto (já estamos no destino), pare o movimento.
+        this._bomberman.body.velocity.x = 0;
+        this._bomberman.body.velocity.y = 0;
+    }
+},
+
+
     update: function() {
         
         if (this._save.isDown) {
@@ -123,6 +152,15 @@ isValid: function(node, grid) {
         
         this.moveCharacter();
         this.activeMotionEnemy();
+            // Adicione o código para encontrar o caminho e mover o Bomberman
+    let start = [Math.round(this._bomberman.y / 40), Math.round(this._bomberman.x / 40)];
+    let goal = [5, 5];  // Objetivo de exemplo, substitua por seu objetivo real
+    
+    // Chama a função BFS para encontrar o caminho
+    let path = this.bfs(this._map, start, goal);
+    
+    // Chama a função para mover o Bomberman ao longo do caminho
+    this.moveAlongPath(path);
     },
     
     render: function() {
@@ -791,4 +829,4 @@ isValid: function(node, grid) {
             }
         }, this);
     } 
-  }
+    }
