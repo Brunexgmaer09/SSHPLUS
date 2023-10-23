@@ -8,7 +8,19 @@ Game.Game = function(game) {};
 
 Game.Game.prototype = {
 	
-    bfs: function(grid, start, goal) {
+    bfs: function(tilemap, start, goal) {
+        // Convertendo o objeto Tilemap em uma matriz bidimensional
+        let grid = [];
+        for (let y = 0; y < tilemap.height; y++) {
+            let row = [];
+            for (let x = 0; x < tilemap.width; x++) {
+                let tile = tilemap.getTile(x, y);
+                row.push(tile ? 1 : 0);  // Assume que tiles existentes são intransitáveis e tiles nulos são transitáveis
+            }
+            grid.push(row);
+        }
+        console.log('Grid size:', grid.length, 'x', grid[0].length);  // Adicionada esta linha aqui
+        console.log(`Starting BFS from ${start} to ${goal}`);
         if (!grid || !start || !goal) {
             console.error('Grid, start, or goal is undefined');
             return null;
@@ -19,6 +31,7 @@ Game.Game.prototype = {
         let path = queue.shift();  // Pega o primeiro caminho da fila
         let node = path[path.length - 1];  // Pega o último nó do caminho
         if (node[0] === goal[0] && node[1] === goal[1]) return path;  // Checa se alcançou o objetivo
+        console.log('Goal reached:', path);
         for (let neighbor of this.getNeighbors(node, grid)) {  // Para cada vizinho do nó
             let neighborStr = neighbor.toString();
             if (!visited.has(neighborStr)) {  // Se o vizinho não foi visitado
@@ -29,6 +42,7 @@ Game.Game.prototype = {
             }
         }
     }
+    console.log('No path found');
     return null;  // Retorna null se não encontrar um caminho
 },
 
@@ -45,7 +59,14 @@ getNeighbors: function(node, grid) {
 isValid: function(node, grid) {
     let x = node[0];
     let y = node[1];
-    return x >= 0 && x < grid.length && y >= 0 && y < grid[0].length && grid[x][y] !== 1;
+    if (x < 0 || y < 0 || x >= grid.length || y >= grid[0].length) {
+        console.log(`Node out of bounds: ${node}`);
+        return false;
+    }
+    console.log('Grid value:', grid[x][y]);
+    let valid = grid[x][y] !== 1;
+    console.log(`Checking node: ${node}, Valid: ${valid}`);
+    return valid;
 },
    
     init: function(stageBomberman) {
@@ -77,9 +98,28 @@ findClosestEnemy: function() {
     return closestEnemy;
 },
 
+findClosestBrick: function() {
+    let bombermanPosition = [this._bomberman.x, this._bomberman.y];
+    let closestBrick = null;
+    let closestDistance = Infinity;
 
-// Dentro do objeto Game.Game.prototype
+    // Itera sobre cada tijolo no grupo de tijolos
+    this._brick.forEach(function(brick) {
+        // Calcula a distância euclidiana entre o Bomberman e o tijolo
+        let distance = Phaser.Math.distance(bombermanPosition[0], bombermanPosition[1], brick.x, brick.y);
+
+        // Se a distância for menor que a distância mais próxima atual, atualiza a distância mais próxima e o tijolo mais próximo
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestBrick = brick;
+        }
+    }, this);
+
+    return closestBrick;
+},
+
 moveAlongPath: function(path) {
+    console.log('Moving along path:', path);
     if (path && path.length > 1) {
         // Pega o próximo ponto no caminho (o primeiro da lista)
         let nextPoint = path[1];
@@ -98,7 +138,8 @@ moveAlongPath: function(path) {
         this._bomberman.body.velocity.x = vx;
         this._bomberman.body.velocity.y = vy;
         
-        // Aqui você pode adicionar lógica para girar o Bomberman na direção certa, se necessário.
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        this._bomberman.angle = angle;
         // Por exemplo, você pode usar this._bomberman.angle para ajustar a rotação.
     } else {
         // Se o caminho estiver vazio ou com apenas um ponto (já estamos no destino), pare o movimento.
@@ -106,7 +147,6 @@ moveAlongPath: function(path) {
         this._bomberman.body.velocity.y = 0;
     }
 },
-
 
     update: function() {
         
@@ -174,14 +214,22 @@ moveAlongPath: function(path) {
         this.moveCharacter();
         this.activeMotionEnemy();
             // Adicione o código para encontrar o caminho e mover o Bomberman
-    let start = [Math.round(this._bomberman.y / 40), Math.round(this._bomberman.x / 40)];
-    let goal = [5, 5];  // Objetivo de exemplo, substitua por seu objetivo real
-    
-    // Chama a função BFS para encontrar o caminho
-    let path = this.bfs(this._map, start, goal);
+            let start = [Math.round(this._bomberman.y / 40), Math.round(this._bomberman.x / 40)];
+            let closestBrick = this.findClosestBrick();  // Supondo que essa função retorna o tijolo mais próximo
+            let goal = [Math.round(closestBrick.y / 40), Math.round(closestBrick.x / 40)];
+        
+            // Chama a função BFS para encontrar o caminho
+            let path = this.bfs(this._map, start, goal);
+
+                // Chama a função para mover o Bomberman ao longo do caminho
+    this.moveAlongPath(path);
+
+    // Se Bomberman alcançou o tijolo, coloque uma bomba
+    if (start[0] === goal[0] && start[1] === goal[1]) {
+        this.placeBomb();  // Supondo que essa função coloca uma bomba na posição atual do Bomberman
+    }
     
     // Chama a função para mover o Bomberman ao longo do caminho
-    this.moveAlongPath(path);
     let closestEnemy = this.findClosestEnemy();
     if (closestEnemy) {
         let path = this.bfs(this._bomberman.position, [closestEnemy.x, closestEnemy.y]);
@@ -198,9 +246,7 @@ moveAlongPath: function(path) {
         }*/
         //this.game.debug.spriteInfo(this.hero.getByName('hero'), 50, 50);
     },
-
-
-    
+   
     createMap: function() {
         this._timers = [];
         this._coordsBrick = [];
