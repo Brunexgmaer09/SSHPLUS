@@ -1,0 +1,28 @@
+#custom-panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    border-radius: 5px;
+    padding: 10px;
+    width: 200px;
+    font-family: Arial, sans-serif;
+    z-index: 9999;
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+#custom-panel h1 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    padding: 5px 15px 5px 5px;
+    background-color: rgba(147, 112, 219, 0.9);
+    border-radius: 5px 5px 5px 5px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    clip-path: polygon(0% 0%, 65% 0%, 95% 100%, 85% 100%, 0% 100%);
+}
+
+#custom-panel p {
+    margin-bottom: 5px;
+    color: #fff;
+}
