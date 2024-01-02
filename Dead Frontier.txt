@@ -1,0 +1,167 @@
+AoB = AOBScan("02 7B 6A 12 00 04 7B 0F 12 00 04 28 53 2A 00 06 16 6B 3D 52")
+if (AoB) then
+print("1hit ON")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+19, 0x00)
+end
+else
+print("1hit OFF")
+end
+
+-- INFINITE ENERGY:
+AoB = AOBScan("22 ?? ?? ?? ?? 5A 58 7D ?? ?? ?? ?? 02 7B ?? ?? ?? ?? 02 7B")
+if (AoB) then
+print("Infinite Energy OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+3, 0x70, 0x41)
+end
+else
+print("Infinite Energy FAILED")
+end
+INSTANT OPEN MENU:
+Code:
+-- INSTANT OPEN MENU:
+AoB = AOBScan("80 ?? ?? ?? ?? 02 1F ?? 7D ?? ?? ?? ?? 38 ?? ?? ?? ?? 02 7B ?? ?? ?? ?? 7B ?? ?? ?? ?? 17")
+if (AoB) then
+print("Instant Open Menu OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+7, 0x00)
+end
+else
+print("Instant Open Menu FAILED")
+end
+SUPER SPRINT:
+Code:
+-- SUPER SPRINT:
+AoB = AOBScan("60 ?? ?? ?? CC ?? ?? ?? ?? 78 ?? ?? 11 ?? 6B 5A 58 5A ?? 9A")
+if (AoB) then
+print("Super Sprint OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+5, 0x7A, 0x40)
+end
+else
+print("Super Sprint FAILED")
+end
+SUPER BOY: (Zombies respawn every second, making them unable to attack you.)
+Code:
+-- SUPERBOY:
+AoB = AOBScan("1F ?? ?? ?? 06 00 04 02 ?? ?? ?? ?? 04 7B")
+if (AoB) then
+print("Superboy OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+1, 0x00)
+end
+else
+print("Superboy FAILED")
+end
+MORE LOOT SPOTS: (Same as GM Loot, adds a few couple loot spots.)
+Code:
+-- MORE LOOT SPOTS:
+AoB = AOBScan("01 00 04 02 1F 23 7D")
+if (AoB) then
+print("More Loot Spots OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+5, 0x13)
+end
+else
+print("More Loot Spots FAILED")
+end
+WASTELAND MODE: (Turns all blocks into Wasteland.)
+Code:
+-- WASTELAND MODE:
+AoB = AOBScan("80 ?? ?? ?? ?? 16 80 ?? ?? ?? ?? 7E ?? ?? ?? ?? 7E ?? ?? ?? ?? 58 69 80 ?? ?? ?? ?? 03 20 ?? ?? ?? ?? 3E")
+if (AoB) then
+print("Wasteland Mode OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+5, 0x17)
+end
+else
+print("Wasteland Mode FAILED")
+end
+DISABLE ZOMBIE ATTACK: (I got this from BR13Vinicius's thread which is working perfectly so no need to update. I just made a few changes.)
+Code:
+-- DISABLE ZOMBIE ATTACK:
+AoB = AOBScan("72 69 67 68 74 20 61 74 74 61 63 6B")
+if (AoB) then
+print("Disable Zombie Attack 1 OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+end
+else
+print("Disable Zombie Attack 1 FAILED")
+end
+
+AoB = AOBScan("64 6F 75 62 6C 65 20 61 74 74 61 63 6B")
+if (AoB) then
+print("Disable Zombie Attack 2 OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+end
+else
+print("Disable Zombie Attack 2 FAILED")
+end
+
+AoB = AOBScan("6C 65 66 74 20 61 74 74 61 63 6B")
+if (AoB) then
+print("Disable Zombie Attack 3 OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+end
+else
+print("Disable Zombie Attack 3 FAILED")
+end
+
+AoB = AOBScan("73 74 61 62 20 61 74 74 61 63 6B")
+if (AoB) then
+print("Disable Zombie Attack 4 OK")
+for x=0, AoB.getCount()-1 do
+writeBytes(tonumber(AoB[x],16)+0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+end
+else
+print("Disable Zombie Attack 4 FAILED")
+end
+
+AoB = AOBScan("7B ?? ?? ?? ?? 94 28 ?? ?? ?? ?? 25 26 17 59 8C ?? ?? ?? ?? 6F ?? ?? ?? ?? 25 26 28 ?? ?? ?? ?? 25 26 9E 02 7B ?? ?? ?? ?? 02 7B ?? ?? ?? ?? 94 28 ?? ?? ?? ?? 25 26 17 59 ")
+if (AoB and AoB.getCount()==3) then
+print("Infinite Ammo PT1 Success")
+writeBytes(tonumber(AoB[0],16)+5, 0x95)
+writeBytes(tonumber(AoB[0],16)+13, 0x16, 0x58)
+writeBytes(tonumber(AoB[0],16)+55, 0x16, 0x58)
+writeBytes(tonumber(AoB[1],16)+5, 0x95)
+writeBytes(tonumber(AoB[1],16)+13, 0x16, 0x58)
+writeBytes(tonumber(AoB[1],16)+55, 0x16, 0x58)
+writeBytes(tonumber(AoB[2],16)+5, 0x95)
+writeBytes(tonumber(AoB[2],16)+13, 0x16, 0x58)
+writeBytes(tonumber(AoB[2],16)+55, 0x16, 0x58)
+AoB.Destroy()
+AoB = nil
+else
+print("Infinite Ammo PT1 Failed")
+end
+
+AoB = AOBScan("16 28 ?? ?? ?? ?? 25 26 7D ?? ?? ?? ?? 11 ?? 28 ?? ?? ?? ?? 2D")
+if (AoB and AoB.getCount()==3) then
+print("Infinite Ammo PT2 Success")
+writeBytes(tonumber(AoB[0],16)+0, 0x1E)
+writeBytes(tonumber(AoB[0],16)+20, 0x2C)
+writeBytes(tonumber(AoB[1],16)+0, 0x1E)
+writeBytes(tonumber(AoB[1],16)+20, 0x2C)
+writeBytes(tonumber(AoB[2],16)+0, 0x1E)
+writeBytes(tonumber(AoB[2],16)+20, 0x2C)
+AoB.Destroy()
+AoB = nil
+else
+print("Infinite Ammo PT2 Failed")
+end
+
+AoB = AOBScan("18 45 ?? ?? ?? ?? ?? ?? ?? ?? 02 1F ?? 7D ?? ?? ?? ?? 02")
+if (AoB and AoB.getCount()==3) then
+print("Infinite Ammo PT3 Success")
+writeBytes(tonumber(AoB[0],16)+11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+writeBytes(tonumber(AoB[1],16)+11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+writeBytes(tonumber(AoB[2],16)+11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+AoB.Destroy()
+AoB = nil
+else
+print("Infinite Ammo PT3 Failed")
+end
