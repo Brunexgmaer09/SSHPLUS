@@ -36,7 +36,7 @@ window.onload = function() {
 
     // Posição do navio
     var shipX = 90; // A mesma posição x da plataforma
-    var shipY = 1030 - ship.height; // Posição y é a posição y da plataforma menos a altura do navio
+    var shipY = 1029 - ship.height; // Posição y é a posição y da plataforma menos a altura do navio
 
     // Gravidade
     var gravity = 0.5;
@@ -70,9 +70,10 @@ window.onload = function() {
         ctx.drawImage(rocket, 50, 50, 100, 130);
     }
     // Desenhe a sprite do navio quando ela for carregada
-ship.onload = function() {
-    ctx.drawImage(ship, shipX, shipY, ship.width, ship.height);
-}
+    ship.onload = function() {
+        var shipY = 1029 - ship.height;
+        ctx.drawImage(ship, shipX, shipY, ship.width, ship.height);
+    }
 
 // Atualize o jogo aqui
 function gameLoop() {
