@@ -1,0 +1,73 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #121212;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Arial', sans-serif;
+    overflow: auto;
+}
+
+.game-container {
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.8),
+                 0 0 20px rgba(0, 0, 0, 0.6) inset;
+    border-radius: 10px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    max-width: 1920px; /* Maximum width of the game area */
+}
+
+canvas {
+    display: block;
+    background-color: #000;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    max-width: 1920px;
+    max-height: 900px;
+}
+
+button {
+    margin: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #333;
+    color: #fff;
+}
+
+button:focus {
+    outline: none;
+    border: 2px solid #555;
+}
+
+.network-container {
+    width: 100%;
+    text-align: center;
+    max-width: 960px;
+}
+
+.node circle {
+    fill: #999;
+}
+
+.node text {
+    font: 10px sans-serif;
+    pointer-events: none;
+    text-anchor: middle;
+}
+
+.link {
+    fill: none;
+    stroke: #666;
+    stroke-width: 1.5px;
+}
