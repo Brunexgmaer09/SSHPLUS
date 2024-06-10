@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Modify Max Output Tokens
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      1
 // @description  Modifica os elementos Max Output Tokens no site chat.lmsys.org
 // @author       Seu Nome
 // @match        https://chat.lmsys.org/*
@@ -92,17 +92,17 @@
             // Aguarda um breve período para garantir que os elementos estejam visíveis
             setTimeout(function() {
                 let numberInput = document.querySelector('input[data-testid="number-input"][aria-label="number input for Max output tokens"]');
-                let rangeInput = document.getElementById('range_id_8');
+                let rangeInput = document.getElementById('range_id_11');
 
                 if (numberInput && rangeInput) {
                     console.log('Modificando os elementos...');
                     numberInput.max = 4096;
-                    numberInput.value = 4096;
+                    numberInput.value = 4096; // Atualize se necessário
                     numberInput.dispatchEvent(new Event('input', { bubbles: true }));
 
                     rangeInput.max = 4096;
-                    rangeInput.style.backgroundSize = '100% 100%';
-                    rangeInput.value = 4096;
+                    rangeInput.style.backgroundSize = '98.8235% 100%'; // Atualize conforme o valor do input
+                    rangeInput.value = 4096; // Atualize se necessário
                     rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
 
                     console.log('Modificações aplicadas!');
