@@ -6,389 +6,68 @@
 // @author       BrunexCoder
 // @match        *://lmarena.ai/*
 // @match        *://arena.lmsys.org/*
+// @match        *://*.lmsys.org/*
 // @icon         https://chat.lmsys.org/favicon.ico
-// @grant        none
+// @grant        GM_addStyle
+// @run-at       document-start
+// @noframes
 // @license      MIT
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Configurações globais
-    const CONFIG = {
-        defaultTokens: 4096,
-        defaultTemp: 0.7,
-        panelId: 'token-maximizer-panel',
-        styles: {
-            colors: {
-                primary: '#539bf5',
-                background: '#0b0f19',
-                border: '#2d333b',
-                text: '#e6edf3',
-                buttonHover: '#444c56'
-            },
-            fontSize: {
-                small: '13px',
-                medium: '14px'
-            }
-        }
-    };
+    // Função para criar um elemento de debug visível
+    function createVisibleDebug() {
+        const debugElement = document.createElement('div');
+        debugElement.id = 'debug-mobile';
+        debugElement.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: red;
+            color: white;
+            padding: 10px;
+            z-index: 999999;
+            font-size: 16px;
+            border-radius: 5px;
+        `;
+        debugElement.textContent = 'Script Iniciado!';
+        
+        // Adiciona informações do dispositivo
+        const deviceInfo = document.createElement('div');
+        deviceInfo.style.fontSize = '12px';
+        deviceInfo.style.marginTop = '5px';
+        deviceInfo.textContent = `UserAgent: ${navigator.userAgent}`;
+        debugElement.appendChild(deviceInfo);
 
-    // Classe principal do Token Maximizer
-    class TokenMaximizer {
-        constructor() {
-            this.initialized = false;
-            this.panel = null;
-            console.log('TokenMaximizer: Construtor iniciado');
-        }
-
-        // Inicializa o Token Maximizer
-        init() {
-            console.log('TokenMaximizer: Iniciando inicialização');
-            if (this.initialized) {
-                console.log('TokenMaximizer: Já inicializado, retornando');
-                return;
-            }
-            this.initialized = true;
-
-            console.log('TokenMaximizer: Detectando ambiente...');
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            console.log('TokenMaximizer: É mobile?', isMobile);
-            console.log('TokenMaximizer: User Agent:', navigator.userAgent);
-
-            this.setupInitialLoad();
-            this.setupMutationObserver();
-            this.showCredits();
-        }
-
-        // Configura o carregamento inicial
-        setupInitialLoad() {
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            const attempts = isMobile 
-                ? [2000, 4000, 6000, 8000, 10000]
-                : [0, 500, 1000, 2000];
-            
-            console.log('TokenMaximizer: Configurando carregamento inicial');
-            console.log('TokenMaximizer: Tentativas programadas:', attempts);
-
-            attempts.forEach(delay => {
-                setTimeout(() => {
-                    console.log(`TokenMaximizer: Tentativa de inserção após ${delay}ms`);
-                    this.insertPanel();
-                }, delay);
-            });
-
-            if (isMobile) {
-                console.log('TokenMaximizer: Iniciando verificações adicionais para mobile');
-                let checkCount = 0;
-                const checkInterval = setInterval(() => {
-                    console.log(`TokenMaximizer: Verificação adicional #${checkCount + 1}`);
-                    if (checkCount >= 15 || document.getElementById(CONFIG.panelId)) {
-                        console.log('TokenMaximizer: Parando verificações adicionais');
-                        clearInterval(checkInterval);
-                        return;
-                    }
-                    this.insertPanel();
-                    checkCount++;
-                }, 2000);
-            }
-        }
-
-        // Configura o observer para mudanças na página
-        setupMutationObserver() {
-            const observer = new MutationObserver(() => {
-                if (!document.getElementById(CONFIG.panelId)) {
-                    setTimeout(() => this.insertPanel(), 100);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['aria-selected', 'style']
+        // Garante que o elemento será adicionado mesmo que o DOM ainda não esteja pronto
+        if (document.body) {
+            document.body.appendChild(debugElement);
+        } else {
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.appendChild(debugElement);
             });
         }
 
-        // Cria e insere o painel na página
-        insertPanel() {
-            console.log('TokenMaximizer: Tentando inserir painel');
-            const existingPanel = document.getElementById(CONFIG.panelId);
-            if (existingPanel) {
-                console.log('TokenMaximizer: Painel existente encontrado, removendo');
-                existingPanel.remove();
-            }
-
-            const possibleContainers = [
-                document.querySelector('#component-107'),
-                document.querySelector('.chat-content'),
-                document.querySelector('[class*="chat"]'),
-                document.querySelector('main'),
-                document.body
-            ];
-
-            console.log('TokenMaximizer: Containers encontrados:', possibleContainers.map(c => c?.tagName || 'null'));
-
-            const directChatContent = possibleContainers.find(container => container?.firstElementChild);
-            if (!directChatContent) {
-                console.log('TokenMaximizer: Nenhum container válido encontrado');
-                return;
-            }
-
-            console.log('TokenMaximizer: Container selecionado:', directChatContent.tagName);
-            this.panel = this.createPanel();
-            
-            try {
-                directChatContent.insertBefore(this.panel, directChatContent.firstElementChild);
-                console.log('TokenMaximizer: Painel inserido com sucesso');
-            } catch (error) {
-                console.error('TokenMaximizer: Erro ao inserir painel:', error);
-            }
-        }
-
-        // Cria o painel de controle
-        createPanel() {
-            const panel = document.createElement('div');
-            panel.id = CONFIG.panelId;
-            panel.style.cssText = this.getPanelStyles();
-
-            const title = this.createTitle('🤖 Token Maximizer');
-            const controls = this.createControls();
-            const buttons = this.createButtons();
-
-            panel.append(title, controls, buttons);
-            return panel;
-        }
-
-        // Estilos do painel
-        getPanelStyles() {
-            return `
-                display: inline-block;
-                margin-left: 10px;
-                padding: 12px 16px;
-                border: 1px solid ${CONFIG.styles.colors.border};
-                border-radius: 8px;
-                color: ${CONFIG.styles.colors.text};
-                font-weight: 500;
-                background-color: ${CONFIG.styles.colors.background};
-                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            `;
-        }
-
-        // Cria o título do painel
-        createTitle(text) {
-            const title = document.createElement('div');
-            title.textContent = text;
-            title.style.cssText = `
-                margin-bottom: 10px;
-                font-size: ${CONFIG.styles.fontSize.medium};
-                font-weight: 600;
-                color: ${CONFIG.styles.colors.primary};
-            `;
-            return title;
-        }
-
-        // Cria os controles do painel
-        createControls() {
-            const controls = document.createElement('div');
-            controls.style.cssText = `
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
-                font-size: 0.9em;
-            `;
-
-            const tokenControl = this.createControl(
-                'Max Tokens:',
-                'range',
-                {min: 1024, max: 8192, value: CONFIG.defaultTokens, step: 1024},
-                this.modifyInputs.bind(this)
-            );
-
-            const tempControl = this.createControl(
-                'Temperature:',
-                'range',
-                {min: 0, max: 1, value: CONFIG.defaultTemp, step: 0.1},
-                this.modifyTemperature.bind(this)
-            );
-
-            controls.append(tokenControl, tempControl);
-            return controls;
-        }
-
-        // Cria um controle individual
-        createControl(label, type, options, onChange) {
-            const container = document.createElement('div');
-            container.style.cssText = `
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                margin-bottom: 8px;
-            `;
-
-            const labelElement = document.createElement('label');
-            labelElement.textContent = label;
-            labelElement.style.cssText = `
-                min-width: 100px;
-                color: ${CONFIG.styles.colors.text};
-                font-size: ${CONFIG.styles.fontSize.small};
-            `;
-
-            const input = document.createElement('input');
-            input.type = type;
-            Object.assign(input, options);
-            input.style.cssText = `
-                width: 120px;
-                margin: 0 5px;
-                accent-color: ${CONFIG.styles.colors.primary};
-            `;
-
-            const valueLabel = document.createElement('span');
-            valueLabel.textContent = options.value;
-            
-            input.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                valueLabel.textContent = type === 'range' && label === 'Max Tokens:' 
-                    ? `${value} tokens` 
-                    : value.toFixed(1);
-                onChange(value);
-            });
-
-            container.append(labelElement, input, valueLabel);
-            return container;
-        }
-
-        // Cria os botões do painel
-        createButtons() {
-            const container = document.createElement('div');
-            container.style.cssText = `
-                display: flex;
-                gap: 5px;
-                margin-top: 5px;
-            `;
-
-            const regenerateBtn = this.createButton('🔄 Regenerate', () => this.findAndClickButton('regenerate'));
-            const clearBtn = this.createButton('🗑️ Clear', () => this.findAndClickButton('clear'));
-
-            container.append(regenerateBtn, clearBtn);
-            return container;
-        }
-
-        // Cria um botão individual
-        createButton(text, onClick) {
-            const button = document.createElement('button');
-            button.textContent = text;
-            button.style.cssText = `
-                padding: 4px 12px;
-                border: 1px solid ${CONFIG.styles.colors.border};
-                border-radius: 6px;
-                background: ${CONFIG.styles.colors.border};
-                color: ${CONFIG.styles.colors.text};
-                cursor: pointer;
-                font-size: ${CONFIG.styles.fontSize.small};
-                transition: all 0.2s ease;
-            `;
-
-            button.addEventListener('mouseover', () => {
-                button.style.background = CONFIG.styles.colors.buttonHover;
-                button.style.borderColor = CONFIG.styles.colors.primary;
-            });
-
-            button.addEventListener('mouseout', () => {
-                button.style.background = CONFIG.styles.colors.border;
-                button.style.borderColor = CONFIG.styles.colors.border;
-            });
-
-            button.addEventListener('click', onClick);
-            return button;
-        }
-
-        // Modifica os inputs de token
-        modifyInputs(targetValue) {
-            const inputs = document.querySelectorAll('input[aria-label*="Max output tokens"]');
-            inputs.forEach(input => {
-                if (input.max < targetValue) input.max = targetValue;
-                if (parseInt(input.value) !== targetValue) {
-                    input.value = targetValue;
-                    if (input.type === 'range') {
-                        input.style.backgroundSize = '100% 100%';
-                    }
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            });
-        }
-
-        // Modifica a temperatura
-        modifyTemperature(value) {
-            const inputs = document.querySelectorAll('input[aria-label*="Temperature"]');
-            inputs.forEach(input => {
-                input.value = value;
-                if (input.type === 'range') {
-                    input.style.backgroundSize = `${value * 100}% 100%`;
-                }
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-        }
-
-        // Encontra e clica em botões
-        findAndClickButton(action) {
-            const buttonTexts = {
-                regenerate: ['regenerate', 'retry', 'reset'],
-                clear: ['clear', 'new chat']
-            };
-
-            const texts = buttonTexts[action] || [];
-            const buttons = Array.from(document.querySelectorAll('button'));
-            
-            const button = buttons.find(btn => {
-                const btnText = btn.textContent.toLowerCase();
-                return texts.some(text => btnText.includes(text));
-            });
-
-            if (button) {
-                button.click();
-                return true;
-            }
-            return false;
-        }
-
-        showCredits() {
-            const credits = document.createElement('div');
-            credits.textContent = 'Token Maximizer developed by BrunexCoder';
-            credits.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: ${CONFIG.styles.colors.background};
-                color: ${CONFIG.styles.colors.text};
-                padding: 10px 15px;
-                border-radius: 8px;
-                border: 1px solid ${CONFIG.styles.colors.border};
-                font-size: ${CONFIG.styles.fontSize.small};
-                z-index: 9999;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            `;
-            document.body.appendChild(credits);
-            
-            setTimeout(() => {
-                credits.style.transition = 'opacity 0.5s ease';
-                credits.style.opacity = '0';
-                setTimeout(() => credits.remove(), 500);
-            }, 5000);
-        }
+        // Adiciona um contador para ver se o script continua rodando
+        let counter = 0;
+        setInterval(() => {
+            counter++;
+            debugElement.firstChild.textContent = `Script Rodando! (${counter}s)`;
+        }, 1000);
     }
 
-    // Inicializa o Token Maximizer quando a página carregar
-    if (document.readyState === 'loading') {
-        console.log('TokenMaximizer: Documento ainda carregando, aguardando evento load');
-        window.addEventListener('load', () => {
-            console.log('TokenMaximizer: Documento carregado, iniciando...');
-            new TokenMaximizer().init();
-        });
-    } else {
-        console.log('TokenMaximizer: Documento já carregado, iniciando imediatamente');
-        new TokenMaximizer().init();
-    }
+    // Tenta criar o debug imediatamente e também após o DOM estar pronto
+    createVisibleDebug();
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM Carregado');
+        createVisibleDebug();
+    });
+
+    window.addEventListener('load', () => {
+        console.log('Página Carregada');
+        createVisibleDebug();
+    });
 })();
