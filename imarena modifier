@@ -39,12 +39,22 @@
         constructor() {
             this.initialized = false;
             this.panel = null;
+            console.log('TokenMaximizer: Construtor iniciado');
         }
 
         // Inicializa o Token Maximizer
         init() {
-            if (this.initialized) return;
+            console.log('TokenMaximizer: Iniciando inicialização');
+            if (this.initialized) {
+                console.log('TokenMaximizer: Já inicializado, retornando');
+                return;
+            }
             this.initialized = true;
+
+            console.log('TokenMaximizer: Detectando ambiente...');
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            console.log('TokenMaximizer: É mobile?', isMobile);
+            console.log('TokenMaximizer: User Agent:', navigator.userAgent);
 
             this.setupInitialLoad();
             this.setupMutationObserver();
@@ -55,26 +65,29 @@
         setupInitialLoad() {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             const attempts = isMobile 
-                ? [2000, 4000, 6000, 8000, 10000] // Delays muito maiores para mobile
-                : [0, 500, 1000, 2000];    // Delays originais para desktop
+                ? [2000, 4000, 6000, 8000, 10000]
+                : [0, 500, 1000, 2000];
             
-            // Tentativas iniciais
+            console.log('TokenMaximizer: Configurando carregamento inicial');
+            console.log('TokenMaximizer: Tentativas programadas:', attempts);
+
             attempts.forEach(delay => {
                 setTimeout(() => {
-                    console.log(`Tentando inserir painel após ${delay}ms`);
+                    console.log(`TokenMaximizer: Tentativa de inserção após ${delay}ms`);
                     this.insertPanel();
                 }, delay);
             });
 
-            // Verificação adicional a cada 2 segundos por 30 segundos
             if (isMobile) {
+                console.log('TokenMaximizer: Iniciando verificações adicionais para mobile');
                 let checkCount = 0;
                 const checkInterval = setInterval(() => {
+                    console.log(`TokenMaximizer: Verificação adicional #${checkCount + 1}`);
                     if (checkCount >= 15 || document.getElementById(CONFIG.panelId)) {
+                        console.log('TokenMaximizer: Parando verificações adicionais');
                         clearInterval(checkInterval);
                         return;
                     }
-                    console.log('Verificação adicional para mobile');
                     this.insertPanel();
                     checkCount++;
                 }, 2000);
@@ -99,10 +112,13 @@
 
         // Cria e insere o painel na página
         insertPanel() {
+            console.log('TokenMaximizer: Tentando inserir painel');
             const existingPanel = document.getElementById(CONFIG.panelId);
-            if (existingPanel) existingPanel.remove();
+            if (existingPanel) {
+                console.log('TokenMaximizer: Painel existente encontrado, removendo');
+                existingPanel.remove();
+            }
 
-            // Tentar diferentes seletores
             const possibleContainers = [
                 document.querySelector('#component-107'),
                 document.querySelector('.chat-content'),
@@ -111,23 +127,23 @@
                 document.body
             ];
 
+            console.log('TokenMaximizer: Containers encontrados:', possibleContainers.map(c => c?.tagName || 'null'));
+
             const directChatContent = possibleContainers.find(container => container?.firstElementChild);
             if (!directChatContent) {
-                console.log('Container não encontrado');
+                console.log('TokenMaximizer: Nenhum container válido encontrado');
                 return;
             }
 
+            console.log('TokenMaximizer: Container selecionado:', directChatContent.tagName);
             this.panel = this.createPanel();
-            this.panel.style.cssText += `
-                position: fixed; /* Mudado para fixed para garantir visibilidade */
-                top: 10px;
-                right: 10px;
-                z-index: 9999; /* Z-index aumentado */
-                background-color: ${CONFIG.styles.colors.background};
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            `;
-
-            directChatContent.insertBefore(this.panel, directChatContent.firstElementChild);
+            
+            try {
+                directChatContent.insertBefore(this.panel, directChatContent.firstElementChild);
+                console.log('TokenMaximizer: Painel inserido com sucesso');
+            } catch (error) {
+                console.error('TokenMaximizer: Erro ao inserir painel:', error);
+            }
         }
 
         // Cria o painel de controle
@@ -366,8 +382,13 @@
 
     // Inicializa o Token Maximizer quando a página carregar
     if (document.readyState === 'loading') {
-        window.addEventListener('load', () => new TokenMaximizer().init());
+        console.log('TokenMaximizer: Documento ainda carregando, aguardando evento load');
+        window.addEventListener('load', () => {
+            console.log('TokenMaximizer: Documento carregado, iniciando...');
+            new TokenMaximizer().init();
+        });
     } else {
+        console.log('TokenMaximizer: Documento já carregado, iniciando imediatamente');
         new TokenMaximizer().init();
     }
 })();
