@@ -53,17 +53,32 @@
 
         // Configura o carregamento inicial
         setupInitialLoad() {
-            const isMobile = /Android/i.test(navigator.userAgent);
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             const attempts = isMobile 
-                ? [1000, 2000, 3000, 4000] // Delays maiores para Android
+                ? [2000, 4000, 6000, 8000, 10000] // Delays muito maiores para mobile
                 : [0, 500, 1000, 2000];    // Delays originais para desktop
             
+            // Tentativas iniciais
             attempts.forEach(delay => {
                 setTimeout(() => {
                     console.log(`Tentando inserir painel após ${delay}ms`);
                     this.insertPanel();
                 }, delay);
             });
+
+            // Verificação adicional a cada 2 segundos por 30 segundos
+            if (isMobile) {
+                let checkCount = 0;
+                const checkInterval = setInterval(() => {
+                    if (checkCount >= 15 || document.getElementById(CONFIG.panelId)) {
+                        clearInterval(checkInterval);
+                        return;
+                    }
+                    console.log('Verificação adicional para mobile');
+                    this.insertPanel();
+                    checkCount++;
+                }, 2000);
+            }
         }
 
         // Configura o observer para mudanças na página
@@ -87,15 +102,27 @@
             const existingPanel = document.getElementById(CONFIG.panelId);
             if (existingPanel) existingPanel.remove();
 
-            const directChatContent = document.querySelector('#component-107');
-            if (!directChatContent?.firstElementChild) return;
+            // Tentar diferentes seletores
+            const possibleContainers = [
+                document.querySelector('#component-107'),
+                document.querySelector('.chat-content'),
+                document.querySelector('[class*="chat"]'),
+                document.querySelector('main'),
+                document.body
+            ];
+
+            const directChatContent = possibleContainers.find(container => container?.firstElementChild);
+            if (!directChatContent) {
+                console.log('Container não encontrado');
+                return;
+            }
 
             this.panel = this.createPanel();
             this.panel.style.cssText += `
-                position: absolute;
+                position: fixed; /* Mudado para fixed para garantir visibilidade */
                 top: 10px;
                 right: 10px;
-                z-index: 1000;
+                z-index: 9999; /* Z-index aumentado */
                 background-color: ${CONFIG.styles.colors.background};
                 box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             `;
