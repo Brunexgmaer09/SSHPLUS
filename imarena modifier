@@ -53,8 +53,17 @@
 
         // Configura o carregamento inicial
         setupInitialLoad() {
-            const attempts = [0, 500, 1000, 2000];
-            attempts.forEach(delay => setTimeout(() => this.insertPanel(), delay));
+            const isMobile = /Android/i.test(navigator.userAgent);
+            const attempts = isMobile 
+                ? [1000, 2000, 3000, 4000] // Delays maiores para Android
+                : [0, 500, 1000, 2000];    // Delays originais para desktop
+            
+            attempts.forEach(delay => {
+                setTimeout(() => {
+                    console.log(`Tentando inserir painel após ${delay}ms`);
+                    this.insertPanel();
+                }, delay);
+            });
         }
 
         // Configura o observer para mudanças na página
