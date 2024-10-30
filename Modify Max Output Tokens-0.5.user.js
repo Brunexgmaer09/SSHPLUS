@@ -46,9 +46,9 @@
             if (this.initialized) return;
             this.initialized = true;
 
-            console.log('🚀 Iniciando Token Maximizer...');
             this.setupInitialLoad();
             this.setupMutationObserver();
+            this.showCredits();
         }
 
         // Configura o carregamento inicial
@@ -92,7 +92,6 @@
             `;
 
             directChatContent.insertBefore(this.panel, directChatContent.firstElementChild);
-            this.panel.appendChild(this.createTooltip());
         }
 
         // Cria o painel de controle
@@ -300,49 +299,39 @@
                 button.click();
                 return true;
             }
-            
-            console.log(`Não foi possível encontrar o botão de ${action}`);
             return false;
         }
 
-        createTooltip() {
-            const tooltip = document.createElement('div');
-            tooltip.textContent = 'Token Maximizer made By Brunex';
-            tooltip.style.cssText = `
-                position: absolute;
-                bottom: -40px;
-                right: 0;
+        showCredits() {
+            const credits = document.createElement('div');
+            credits.textContent = 'Token Maximizer developed by BrunexCoder';
+            credits.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
                 background: ${CONFIG.styles.colors.background};
                 color: ${CONFIG.styles.colors.text};
-                padding: 8px 12px;
-                border-radius: 6px;
+                padding: 10px 15px;
+                border-radius: 8px;
                 border: 1px solid ${CONFIG.styles.colors.border};
                 font-size: ${CONFIG.styles.fontSize.small};
-                white-space: nowrap;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-                z-index: 1001;
+                z-index: 9999;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             `;
-
-            // Animação de fade in/out
+            document.body.appendChild(credits);
+            
             setTimeout(() => {
-                tooltip.style.opacity = '1';
-                setTimeout(() => {
-                    tooltip.style.opacity = '0';
-                    setTimeout(() => tooltip.remove(), 300);
-                }, 3000);
-            }, 100);
-
-            return tooltip;
+                credits.style.transition = 'opacity 0.5s ease';
+                credits.style.opacity = '0';
+                setTimeout(() => credits.remove(), 500);
+            }, 5000);
         }
     }
 
     // Inicializa o Token Maximizer quando a página carregar
     if (document.readyState === 'loading') {
-        console.log('📝 Aguardando carregamento da página...');
         window.addEventListener('load', () => new TokenMaximizer().init());
     } else {
-        console.log('📝 Página já carregada, iniciando...');
         new TokenMaximizer().init();
     }
 })();
