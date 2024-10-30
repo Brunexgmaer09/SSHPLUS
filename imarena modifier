@@ -1,73 +1,43 @@
 // ==UserScript==
-// @name         LMSYS Token Maximizer
-// @namespace    https://github.com/seu-usuario/lmsys-token-maximizer
-// @version      1.0.0
-// @description  Enhanced token and temperature control for LMSYS Chat with a beautiful interface
-// @author       BrunexCoder
+// @name         LMSYS Test Script
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Test script for Android
+// @author       You
+// @match        https://lmarena.ai/*
 // @match        *://lmarena.ai/*
-// @match        *://arena.lmsys.org/*
-// @match        *://*.lmsys.org/*
-// @icon         https://chat.lmsys.org/favicon.ico
-// @grant        GM_addStyle
+// @grant        none
 // @run-at       document-start
-// @noframes
-// @license      MIT
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Função para criar um elemento de debug visível
-    function createVisibleDebug() {
-        const debugElement = document.createElement('div');
-        debugElement.id = 'debug-mobile';
-        debugElement.style.cssText = `
+    function addTestElement() {
+        const div = document.createElement('div');
+        div.innerHTML = 'TESTE ANDROID';
+        div.style.cssText = `
             position: fixed;
-            top: 10px;
-            left: 10px;
+            top: 0;
+            left: 0;
+            right: 0;
             background: red;
             color: white;
-            padding: 10px;
+            padding: 20px;
+            font-size: 24px;
+            text-align: center;
             z-index: 999999;
-            font-size: 16px;
-            border-radius: 5px;
         `;
-        debugElement.textContent = 'Script Iniciado!';
-        
-        // Adiciona informações do dispositivo
-        const deviceInfo = document.createElement('div');
-        deviceInfo.style.fontSize = '12px';
-        deviceInfo.style.marginTop = '5px';
-        deviceInfo.textContent = `UserAgent: ${navigator.userAgent}`;
-        debugElement.appendChild(deviceInfo);
-
-        // Garante que o elemento será adicionado mesmo que o DOM ainda não esteja pronto
-        if (document.body) {
-            document.body.appendChild(debugElement);
-        } else {
-            document.addEventListener('DOMContentLoaded', () => {
-                document.body.appendChild(debugElement);
-            });
-        }
-
-        // Adiciona um contador para ver se o script continua rodando
-        let counter = 0;
-        setInterval(() => {
-            counter++;
-            debugElement.firstChild.textContent = `Script Rodando! (${counter}s)`;
-        }, 1000);
+        document.documentElement.appendChild(div);
     }
 
-    // Tenta criar o debug imediatamente e também após o DOM estar pronto
-    createVisibleDebug();
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOM Carregado');
-        createVisibleDebug();
-    });
+    // Tentar várias vezes
+    addTestElement();
+    setTimeout(addTestElement, 1000);
+    setTimeout(addTestElement, 2000);
+    setTimeout(addTestElement, 3000);
 
-    window.addEventListener('load', () => {
-        console.log('Página Carregada');
-        createVisibleDebug();
-    });
+    // Tentar em diferentes eventos
+    document.addEventListener('DOMContentLoaded', addTestElement);
+    window.addEventListener('load', addTestElement);
 })();
