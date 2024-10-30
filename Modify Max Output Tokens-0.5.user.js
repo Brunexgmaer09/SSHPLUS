@@ -1,318 +1,348 @@
 // ==UserScript==
-// @name         lmsys chat only
-// @namespace    Apache-2.0
-// @version      1.4.3
-// @description  When you open the site https://(arena/chat).lmsys.org/ goes to the "Direct Chat" tab makes the model selection blocks, the chat window and the query input block fixed above all other elements.
-// @author       Tony 0tis
-// @license      Apache-2.0
-// @match        *://chat.lmsys.org
-// @match        *://arena.lmsys.org
+// @name         LMSYS Token Maximizer
+// @namespace    https://github.com/seu-usuario/lmsys-token-maximizer
+// @version      1.0.0
+// @description  Enhanced token and temperature control for LMSYS Chat with a beautiful interface
+// @author       BrunexCoder
+// @match        *://lmarena.ai/*
+// @match        *://arena.lmsys.org/*
 // @icon         https://chat.lmsys.org/favicon.ico
 // @grant        none
+// @license      MIT
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Ensure the script does not conflict with page's own scripts
-    if (localStorage.alertShown) {
-        const originalAlert = window.alert;
-        window.alert = () => {};
-        setTimeout(() => {
-            window.alert = originalAlert;
-        }, 1000);
-    }
-    localStorage.alertShown = true;
+    // Configurações globais
+    const CONFIG = {
+        defaultTokens: 4096,
+        defaultTemp: 0.7,
+        panelId: 'token-maximizer-panel',
+        styles: {
+            colors: {
+                primary: '#539bf5',
+                background: '#0b0f19',
+                border: '#2d333b',
+                text: '#e6edf3',
+                buttonHover: '#444c56'
+            },
+            fontSize: {
+                small: '13px',
+                medium: '14px'
+            }
+        }
+    };
 
-    class lmsysChat {
+    // Classe principal do Token Maximizer
+    class TokenMaximizer {
         constructor() {
-            this.button = null;
-            this.tab = null;
-            this.mode = null;
-            this.timeouts = {};
-            this.rangeModified = false;
-            this.numberModified = false;
-
-            console.log('start check');
-            this.setCss();
-            this.setMeta();
-            this.setObserver();
-            this.setManifest('https://gist.githubusercontent.com/tony-0tis/8cbd21c32e59676078a0394d3b6107db/raw/b3287d6fd5020980fe7ae3fc08cc65ff82aa1b45/manifest.json');
+            this.initialized = false;
+            this.panel = null;
         }
 
-        setMeta() {
-            const meta = document.createElement('meta');
-            meta.name = 'viewport';
-            meta.content = 'width=device-width, initial-scale=1';
-            document.head.appendChild(meta);
+        // Inicializa o Token Maximizer
+        init() {
+            if (this.initialized) return;
+            this.initialized = true;
+
+            console.log('🚀 Iniciando Token Maximizer...');
+            this.setupInitialLoad();
+            this.setupMutationObserver();
         }
 
-        setObserver() {
-            const observer = new MutationObserver((mutationsList, observer) => {
-                for (const mutation of mutationsList) {
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeName === 'BUTTON' && node.innerText.includes('Direct Chat')) {
-                            console.log('select chat');
-                            this.riseChat(node);
-                        }
-                    }
+        // Configura o carregamento inicial
+        setupInitialLoad() {
+            const attempts = [0, 500, 1000, 2000];
+            attempts.forEach(delay => setTimeout(() => this.insertPanel(), delay));
+        }
+
+        // Configura o observer para mudanças na página
+        setupMutationObserver() {
+            const observer = new MutationObserver(() => {
+                if (!document.getElementById(CONFIG.panelId)) {
+                    setTimeout(() => this.insertPanel(), 100);
                 }
             });
-            observer.observe(document, { attributes: false, childList: true, characterData: false, subtree: true });
-            document.addEventListener('beforeunload', () => {
-                observer.disconnect();
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['aria-selected', 'style']
             });
         }
 
-        async riseChat(button) {
-            if (this.mode === 'tabs') {
-                return;
-            }
+        // Cria e insere o painel na página
+        insertPanel() {
+            const existingPanel = document.getElementById(CONFIG.panelId);
+            if (existingPanel) existingPanel.remove();
 
-            if (!button.classList.contains('selected')) {
-                this.button = button;
-                button.dispatchEvent(new Event('click'));
-                await this._timeout(200);
-            }
+            const directChatContent = document.querySelector('#component-107');
+            if (!directChatContent?.firstElementChild) return;
 
-            const tab = this._find(document, '.tabitem', el => el.style.display === 'block');
-            if (!tab) return;
-            this.tab = tab;
-            this.mode = 'chat';
+            this.panel = this.createPanel();
+            this.panel.style.cssText += `
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+                background-color: ${CONFIG.styles.colors.background};
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            `;
 
-            if (tab.classList.contains('directChat')) return;
-            tab.classList.add('directChat');
-
-            // Continuously try to modify inputs
-            this.continuouslyModifyInputs();
-
-            const inputComponent = this._find(tab, '[id="input_box"]', el => el, true);
-            if (inputComponent && !inputComponent.classList.contains('directChatInput')) {
-                inputComponent.classList.add('directChatInput');
-                const button = inputComponent.querySelector('button');
-                if (button && !button.classList.contains('directChatSend')) {
-                    button.classList.add('directChatSend');
-                }
-            }
-
-            const descriptionsComponent = this._find(tab, 'button', el => el.innerText.includes('Expand to see the'), true);
-            if (descriptionsComponent && !descriptionsComponent.classList.contains('directChatDescriptions')) {
-                descriptionsComponent.classList.add('directChatDescriptions');
-            }
-
-            const upvoteComponent = this._find(tab, 'button', el => el.innerText.includes('Upvote'), true);
-            if (upvoteComponent && !upvoteComponent.classList.contains('directChatVotes')) {
-                upvoteComponent.classList.add('directChatVotes');
-            }
-
-            const maxTokensComponent = this._find(tab, 'span', el => el.innerText.includes('Max output tokens'), true);
-            if (maxTokensComponent) {
-                [...maxTokensComponent.querySelectorAll('input')].forEach(el => {
-                    el.value = el.max || 1096;
-                });
-            }
-
-            const parametrs = this._find(tab, 'span', el => el.innerText.includes('Parameters'));
-            if (parametrs) {
-                parametrs.innerText += ' (Fine tuning)';
-            }
-
-            const selector = tab.querySelector('[role="listbox"]');
-            if (selector && !tab.querySelector('.chatModeSwitcher')) {
-                const button = document.createElement('button');
-                button.classList.add('chatModeSwitcher');
-                button.addEventListener('click', e => this._switchChatMode(e));
-                button.innerHTML = '🪟';
-                button.title = 'Switch fullscreen/tabs';
-                selector.parentNode.insertBefore(button, selector);
-
-                while (!tab.querySelector('.progress-text')) {
-                    await this._timeout(null, 'progress');
-                }
-
-                while (tab.querySelector('.progress-text')) {
-                    await this._timeout(null, 'progress');
-                }
-
-                let model = localStorage.getItem('lmsysChatModel');
-                if (model) {
-                    this.model = model;
-                    if (model !== selector.value) {
-                        selector.dispatchEvent(new Event('focus'));
-                        await this._timeout(50, 'progress');
-
-                        const select = tab.querySelector(`[aria-label="${model}"]`);
-                        if (select) {
-                            console.log('change selected model to', select.innerText);
-                            select.dispatchEvent(new Event('mousedown', { bubbles: true }));
-                        }
-                    }
-                }
-                setInterval(() => this._changeModel(selector), 500);
-            }
+            directChatContent.insertBefore(this.panel, directChatContent.firstElementChild);
+            this.panel.appendChild(this.createTooltip());
         }
 
-        _switchChatMode(e) {
-            if (!this.tab) return;
-            if (this.tab.classList.contains('directChat')) {
-                this.mode = 'tabs';
-                this.tab.classList.remove('directChat');
-                document.querySelector('html').style.overflow = 'auto';
-            } else {
-                this.mode = 'chat';
-                this.tab.classList.add('directChat');
-                document.querySelector('html').style.overflow = 'hidden';
-            }
+        // Cria o painel de controle
+        createPanel() {
+            const panel = document.createElement('div');
+            panel.id = CONFIG.panelId;
+            panel.style.cssText = this.getPanelStyles();
+
+            const title = this.createTitle('🤖 Token Maximizer');
+            const controls = this.createControls();
+            const buttons = this.createButtons();
+
+            panel.append(title, controls, buttons);
+            return panel;
         }
 
-        _changeModel(selector) {
-            if (!this.tab) return;
-            if (selector.value === this.model) return;
-            this.model = selector.value;
-            localStorage.setItem('lmsysChatModel', selector.value);
-            console.log('save selected model to:', selector.value);
+        // Estilos do painel
+        getPanelStyles() {
+            return `
+                display: inline-block;
+                margin-left: 10px;
+                padding: 12px 16px;
+                border: 1px solid ${CONFIG.styles.colors.border};
+                border-radius: 8px;
+                color: ${CONFIG.styles.colors.text};
+                font-weight: 500;
+                background-color: ${CONFIG.styles.colors.background};
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            `;
         }
 
-        _find(doc, where, filter, findParentComponent) {
-            let el = [...doc.querySelectorAll(where)].filter(filter)[0];
-
-            if (findParentComponent) {
-                let s = el.parentNode;
-                while (s) {
-                    if (s.id?.includes('component')) {
-                        break;
-                    }
-                    s = s.parentNode;
-                }
-                if (s) {
-                    el = s;
-                }
-            }
-            return el;
+        // Cria o título do painel
+        createTitle(text) {
+            const title = document.createElement('div');
+            title.textContent = text;
+            title.style.cssText = `
+                margin-bottom: 10px;
+                font-size: ${CONFIG.styles.fontSize.medium};
+                font-weight: 600;
+                color: ${CONFIG.styles.colors.primary};
+            `;
+            return title;
         }
 
-        _timeout(timeout = 200, name = 'default') {
-            clearTimeout(this.timeouts[name]);
+        // Cria os controles do painel
+        createControls() {
+            const controls = document.createElement('div');
+            controls.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                font-size: 0.9em;
+            `;
 
-            return new Promise(resolve => {
-                this.timeouts[name] = setTimeout(resolve, timeout);
+            const tokenControl = this.createControl(
+                'Max Tokens:',
+                'range',
+                {min: 1024, max: 8192, value: CONFIG.defaultTokens, step: 1024},
+                this.modifyInputs.bind(this)
+            );
+
+            const tempControl = this.createControl(
+                'Temperature:',
+                'range',
+                {min: 0, max: 1, value: CONFIG.defaultTemp, step: 0.1},
+                this.modifyTemperature.bind(this)
+            );
+
+            controls.append(tokenControl, tempControl);
+            return controls;
+        }
+
+        // Cria um controle individual
+        createControl(label, type, options, onChange) {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 8px;
+            `;
+
+            const labelElement = document.createElement('label');
+            labelElement.textContent = label;
+            labelElement.style.cssText = `
+                min-width: 100px;
+                color: ${CONFIG.styles.colors.text};
+                font-size: ${CONFIG.styles.fontSize.small};
+            `;
+
+            const input = document.createElement('input');
+            input.type = type;
+            Object.assign(input, options);
+            input.style.cssText = `
+                width: 120px;
+                margin: 0 5px;
+                accent-color: ${CONFIG.styles.colors.primary};
+            `;
+
+            const valueLabel = document.createElement('span');
+            valueLabel.textContent = options.value;
+            
+            input.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                valueLabel.textContent = type === 'range' && label === 'Max Tokens:' 
+                    ? `${value} tokens` 
+                    : value.toFixed(1);
+                onChange(value);
             });
+
+            container.append(labelElement, input, valueLabel);
+            return container;
         }
 
-        setManifest(manifestUrl) {
-            const manifest = document.createElement('link');
-            manifest.rel = 'manifest';
-            manifest.href = manifestUrl;
-            document.head.appendChild(manifest);
+        // Cria os botões do painel
+        createButtons() {
+            const container = document.createElement('div');
+            container.style.cssText = `
+                display: flex;
+                gap: 5px;
+                margin-top: 5px;
+            `;
+
+            const regenerateBtn = this.createButton('🔄 Regenerate', () => this.findAndClickButton('regenerate'));
+            const clearBtn = this.createButton('🗑️ Clear', () => this.findAndClickButton('clear'));
+
+            container.append(regenerateBtn, clearBtn);
+            return container;
         }
 
-        setCss() {
-            const css = document.createElement('style');
-            css.innerHTML = `
-html{
-    overflow: hidden;
-}
-.directChat{
-    position: fixed !important;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: 0;
-    z-index: 1000;
-    padding: 5px !important;
-    background: var(--body-background-fill);
-}
-.directChat>div{
-    gap: 7px !important;
-    height: 100%;
-    max-width: 900px;
-    margin: 0 auto;
-}
-.directChat #share-region-named, .directChat #share-region-named>div{
-    height: 100%;
-}
-.directChat #notice_markdown, .directChat #ack_markdown{
-    display: none;
-}
-.directChat .directChatSend{
-    min-width: 90px !important;
-}
-.directChat .options{
-    max-height: calc(100vh - 150px) !important;
-}
-.directChat .directChatDescriptions{
-    display: none;
-}
-.directChat .directChatVotes{
-    gap: 5px;
-}
-.directChat .directChatVotes>button{
-    min-width: auto;
-    padding: 5px;
-    line-height: 1;
-}
-.directChat .directChatInput{
-    gap: 5px;
-}
-.directChat #chatbot{
-    height: 100% !important;
-}
-.directChat #input_box{
-    padding: 0;
-}
-.chatModeSwitcher {
-    padding: 8px !important;
-    border-radius: 3px !important;
-    background: #f36812 !important;
-    margin: -6px 0 !important;
-    margin-left: -12px !important;
-    width: 55px !important;
-    margin-right: 10px !important;
-}
-.chatModeSwitcher:hover{
-    opacity: 0.8;
-}
-`;
-            document.head.appendChild(css);
+        // Cria um botão individual
+        createButton(text, onClick) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.style.cssText = `
+                padding: 4px 12px;
+                border: 1px solid ${CONFIG.styles.colors.border};
+                border-radius: 6px;
+                background: ${CONFIG.styles.colors.border};
+                color: ${CONFIG.styles.colors.text};
+                cursor: pointer;
+                font-size: ${CONFIG.styles.fontSize.small};
+                transition: all 0.2s ease;
+            `;
+
+            button.addEventListener('mouseover', () => {
+                button.style.background = CONFIG.styles.colors.buttonHover;
+                button.style.borderColor = CONFIG.styles.colors.primary;
+            });
+
+            button.addEventListener('mouseout', () => {
+                button.style.background = CONFIG.styles.colors.border;
+                button.style.borderColor = CONFIG.styles.colors.border;
+            });
+
+            button.addEventListener('click', onClick);
+            return button;
         }
 
-        continuouslyModifyInputs() {
-            const simulateHumanInput = (input, value) => {
-                input.focus();
-                input.value = '';
-                const valueStr = value.toString();
-                for (const char of valueStr) {
-                    input.value += char;
+        // Modifica os inputs de token
+        modifyInputs(targetValue) {
+            const inputs = document.querySelectorAll('input[aria-label*="Max output tokens"]');
+            inputs.forEach(input => {
+                if (input.max < targetValue) input.max = targetValue;
+                if (parseInt(input.value) !== targetValue) {
+                    input.value = targetValue;
+                    if (input.type === 'range') {
+                        input.style.backgroundSize = '100% 100%';
+                    }
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                     input.dispatchEvent(new Event('change', { bubbles: true }));
                 }
-                input.blur();
+            });
+        }
+
+        // Modifica a temperatura
+        modifyTemperature(value) {
+            const inputs = document.querySelectorAll('input[aria-label*="Temperature"]');
+            inputs.forEach(input => {
+                input.value = value;
+                if (input.type === 'range') {
+                    input.style.backgroundSize = `${value * 100}% 100%`;
+                }
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
+        // Encontra e clica em botões
+        findAndClickButton(action) {
+            const buttonTexts = {
+                regenerate: ['regenerate', 'retry', 'reset'],
+                clear: ['clear', 'new chat']
             };
 
-            const modifyInputs = () => {
-                const rangeInput = document.getElementById('range_id_8');
-                if (rangeInput && rangeInput.max != 4048) {
-                    rangeInput.max = 4048;
-                    rangeInput.style.backgroundSize = '98.8235% 100%';
-                    this.rangeModified = true;
-                    console.log('Range input modified:', rangeInput);
-                }
+            const texts = buttonTexts[action] || [];
+            const buttons = Array.from(document.querySelectorAll('button'));
+            
+            const button = buttons.find(btn => {
+                const btnText = btn.textContent.toLowerCase();
+                return texts.some(text => btnText.includes(text));
+            });
 
-                const numberInput = document.querySelector('input[type="number"][aria-label="number input for Max output tokens"]');
-                if (numberInput && numberInput.max != 4048) {
-                    simulateHumanInput(numberInput, 4048);
-                    this.numberModified = true;
-                    console.log('Number input modified:', numberInput);
-                }
+            if (button) {
+                button.click();
+                return true;
+            }
+            
+            console.log(`Não foi possível encontrar o botão de ${action}`);
+            return false;
+        }
 
-                if (!this.rangeModified || !this.numberModified) {
-                    requestAnimationFrame(modifyInputs);
-                }
-            };
+        createTooltip() {
+            const tooltip = document.createElement('div');
+            tooltip.textContent = 'Token Maximizer made By Brunex';
+            tooltip.style.cssText = `
+                position: absolute;
+                bottom: -40px;
+                right: 0;
+                background: ${CONFIG.styles.colors.background};
+                color: ${CONFIG.styles.colors.text};
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid ${CONFIG.styles.colors.border};
+                font-size: ${CONFIG.styles.fontSize.small};
+                white-space: nowrap;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                z-index: 1001;
+            `;
 
-            modifyInputs();
+            // Animação de fade in/out
+            setTimeout(() => {
+                tooltip.style.opacity = '1';
+                setTimeout(() => {
+                    tooltip.style.opacity = '0';
+                    setTimeout(() => tooltip.remove(), 300);
+                }, 3000);
+            }, 100);
+
+            return tooltip;
         }
     }
 
-    new lmsysChat();
+    // Inicializa o Token Maximizer quando a página carregar
+    if (document.readyState === 'loading') {
+        console.log('📝 Aguardando carregamento da página...');
+        window.addEventListener('load', () => new TokenMaximizer().init());
+    } else {
+        console.log('📝 Página já carregada, iniciando...');
+        new TokenMaximizer().init();
+    }
 })();
