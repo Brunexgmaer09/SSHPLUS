@@ -58,81 +58,115 @@
     class TokenMaximizer {
         constructor() {
             this.initialized = false;
-            this.debugMode = /Android/.test(navigator.userAgent);
+            this.debugMode = this.isMobileDevice();
+            this.logMessages = [];
+            
+            this.log('Constructor iniciado', 'init');
+            this.log(`User Agent: ${navigator.userAgent}`, 'device');
+            this.log(`É móvel: ${this.debugMode}`, 'device');
+        }
+
+        isMobileDevice() {
+            const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+            const isMobile = mobileRegex.test(navigator.userAgent) || 
+                            (window.innerWidth <= 800 && window.innerHeight <= 900);
+            return true; // Força logs para todos os dispositivos durante testes
         }
 
         log(message, type = 'info') {
-            if (this.debugMode) {
-                const logElement = document.createElement('div');
-                logElement.style.cssText = `
-                    position: fixed;
-                    top: ${document.querySelectorAll('.debug-log').length * 30}px;
-                    left: 10px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    padding: 5px 10px;
-                    border-radius: 5px;
-                    z-index: 9999;
-                    font-size: 12px;
-                `;
-                logElement.className = 'debug-log';
-                logElement.textContent = `[${type}] ${message}`;
-                document.body.appendChild(logElement);
-                
-                // Remove o log após 5 segundos
-                setTimeout(() => logElement.remove(), 5000);
-                
-                console.log(`[TokenMaximizer] ${message}`);
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}][${type}] ${message}`;
+            this.logMessages.push(logMessage);
+            console.log(logMessage);
+
+            try {
+                if (this.debugMode) {
+                    const logElement = document.createElement('div');
+                    logElement.style.cssText = `
+                        position: fixed;
+                        top: ${10 + (document.querySelectorAll('.debug-log').length * 30)}px;
+                        left: 10px;
+                        background: rgba(0,0,0,0.9);
+                        color: #00ff00;
+                        padding: 8px 12px;
+                        border-radius: 5px;
+                        z-index: 99999;
+                        font-size: 14px;
+                        font-family: monospace;
+                        max-width: 90vw;
+                        word-break: break-all;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                        border: 1px solid #00ff00;
+                    `;
+                    logElement.className = 'debug-log';
+                    logElement.textContent = logMessage;
+                    document.body.appendChild(logElement);
+
+                    // Remove logs antigos se houver muitos
+                    const logs = document.querySelectorAll('.debug-log');
+                    if (logs.length > 5) {
+                        logs[0].remove();
+                    }
+
+                    // Remove o log após 10 segundos
+                    setTimeout(() => logElement.remove(), 10000);
+                }
+            } catch (error) {
+                console.error('Erro ao criar log visual:', error);
             }
         }
 
-        // Inicializa o Token Maximizer
         init() {
-            if (this.initialized) return;
-            this.initialized = true;
+            this.log('Tentando inicializar...', 'init');
+            
+            if (this.initialized) {
+                this.log('Já inicializado, retornando...', 'init');
+                return;
+            }
 
-            this.log('Iniciando Token Maximizer...');
-            this.log(`User Agent: ${navigator.userAgent}`);
-            
-            this.setupInitialLoad();
-            this.setupMutationObserver();
-            this.showCredits();
-            
-            setTimeout(() => this.showTutorialArrow(), 2000);
+            try {
+                this.initialized = true;
+                this.log('Inicialização começou', 'init');
+                
+                // Verifica elementos importantes
+                const directChatTab = document.querySelector('#component-107');
+                this.log(`Direct Chat Tab encontrado: ${!!directChatTab}`, 'check');
+                
+                const directChatContainer = directChatTab?.querySelector('#component-111') || 
+                                          directChatTab?.querySelector('.gr-group');
+                this.log(`Direct Chat Container encontrado: ${!!directChatContainer}`, 'check');
+
+                this.setupInitialLoad();
+                this.setupMutationObserver();
+                this.showCredits();
+                
+                setTimeout(() => this.showTutorialArrow(), 2000);
+                
+                this.log('Inicialização completa', 'init');
+            } catch (error) {
+                this.log(`Erro na inicialização: ${error.message}`, 'error');
+                console.error(error);
+            }
         }
 
-        // Configura o carregamento inicial
         setupInitialLoad() {
+            this.log('Iniciando setupInitialLoad', 'setup');
             const attempts = [0, 500, 1000, 2000];
-            attempts.forEach(delay => setTimeout(() => {
-                // Procura especificamente pelo container do Direct Chat
-                const directChatTab = document.querySelector('#component-107');
-                const directChatContainer = directChatTab?.querySelector('#component-111') || 
-                                          directChatTab?.querySelector('.gr-group');
-                
-                if (directChatContainer) {
-                    this.insertControls(directChatContainer);
-                }
-            }, delay));
-        }
-
-        // Configura o observer para mudanças na página
-        setupMutationObserver() {
-            const observer = new MutationObserver(() => {
-                const directChatTab = document.querySelector('#component-107');
-                const directChatContainer = directChatTab?.querySelector('#component-111') || 
-                                          directChatTab?.querySelector('.gr-group');
-                
-                if (directChatContainer && !document.getElementById(CONFIG.panelId)) {
-                    setTimeout(() => this.insertControls(directChatContainer), 100);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['aria-selected', 'style']
+            
+            attempts.forEach(delay => {
+                setTimeout(() => {
+                    this.log(`Tentativa de carregamento após ${delay}ms`, 'setup');
+                    const directChatTab = document.querySelector('#component-107');
+                    const directChatContainer = directChatTab?.querySelector('#component-111') || 
+                                              directChatTab?.querySelector('.gr-group');
+                    
+                    if (directChatContainer) {
+                        this.log('Container encontrado, inserindo controles', 'setup');
+                        this.insertControls(directChatContainer);
+                    } else {
+                        this.log('Container não encontrado nesta tentativa', 'setup');
+                    }
+                }, delay);
             });
         }
 
@@ -553,6 +587,12 @@
         resetTutorial() {
             localStorage.removeItem(CONFIG.firstRunKey);
             this.log('Tutorial reset realizado com sucesso');
+        }
+
+        showAllLogs() {
+            console.log('=== Todos os Logs ===');
+            this.logMessages.forEach(msg => console.log(msg));
+            console.log('===================');
         }
     }
 
