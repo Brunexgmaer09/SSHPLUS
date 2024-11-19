@@ -116,7 +116,18 @@
             }
         }
 
-        init() {
+        static async waitForElement(selector, timeout = 10000) {
+            const startTime = Date.now();
+            
+            while (Date.now() - startTime < timeout) {
+                const element = document.querySelector(selector);
+                if (element) return element;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return null;
+        }
+
+        async init() {
             this.log('Tentando inicializar...', 'init');
             
             if (this.initialized) {
@@ -128,19 +139,40 @@
                 this.initialized = true;
                 this.log('Inicialização começou', 'init');
                 
-                // Verifica elementos importantes
-                const directChatTab = document.querySelector('#component-107');
+                // Aguarda o carregamento do elemento principal
+                const directChatTab = await TokenMaximizer.waitForElement('#component-107');
                 this.log(`Direct Chat Tab encontrado: ${!!directChatTab}`, 'check');
                 
+                if (!directChatTab) {
+                    this.log('Timeout ao aguardar elemento principal', 'error');
+                    return;
+                }
+
                 const directChatContainer = directChatTab?.querySelector('#component-111') || 
                                           directChatTab?.querySelector('.gr-group');
                 this.log(`Direct Chat Container encontrado: ${!!directChatContainer}`, 'check');
 
-                this.setupInitialLoad();
-                this.setupMutationObserver();
-                this.showCredits();
-                
-                setTimeout(() => this.showTutorialArrow(), 2000);
+                // Executa cada função em uma try/catch separada
+                try {
+                    await this.setupInitialLoad();
+                    this.log('setupInitialLoad executado com sucesso', 'init');
+                } catch (e) {
+                    this.log(`Erro em setupInitialLoad: ${e.message}`, 'error');
+                }
+
+                try {
+                    this.setupMutationObserver();
+                    this.log('setupMutationObserver executado com sucesso', 'init');
+                } catch (e) {
+                    this.log(`Erro em setupMutationObserver: ${e.message}`, 'error');
+                }
+
+                try {
+                    this.showCredits();
+                    this.log('showCredits executado com sucesso', 'init');
+                } catch (e) {
+                    this.log(`Erro em showCredits: ${e.message}`, 'error');
+                }
                 
                 this.log('Inicialização completa', 'init');
             } catch (error) {
@@ -149,25 +181,26 @@
             }
         }
 
-        setupInitialLoad() {
+        async setupInitialLoad() {
             this.log('Iniciando setupInitialLoad', 'setup');
-            const attempts = [0, 500, 1000, 2000];
+            const attempts = [0, 500, 1000, 2000, 3000, 4000]; // Aumentei o número de tentativas
             
-            attempts.forEach(delay => {
-                setTimeout(() => {
-                    this.log(`Tentativa de carregamento após ${delay}ms`, 'setup');
-                    const directChatTab = document.querySelector('#component-107');
-                    const directChatContainer = directChatTab?.querySelector('#component-111') || 
-                                              directChatTab?.querySelector('.gr-group');
-                    
-                    if (directChatContainer) {
-                        this.log('Container encontrado, inserindo controles', 'setup');
-                        this.insertControls(directChatContainer);
-                    } else {
-                        this.log('Container não encontrado nesta tentativa', 'setup');
-                    }
-                }, delay);
-            });
+            for (const delay of attempts) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                this.log(`Tentativa de carregamento após ${delay}ms`, 'setup');
+                const directChatTab = document.querySelector('#component-107');
+                const directChatContainer = directChatTab?.querySelector('#component-111') || 
+                                          directChatTab?.querySelector('.gr-group');
+                
+                if (directChatContainer) {
+                    this.log('Container encontrado, inserindo controles', 'setup');
+                    this.insertControls(directChatContainer);
+                    break; // Sai do loop se encontrou o container
+                } else {
+                    this.log('Container não encontrado nesta tentativa', 'setup');
+                }
+            }
         }
 
         insertControls(targetElement) {
@@ -594,12 +627,93 @@
             this.logMessages.forEach(msg => console.log(msg));
             console.log('===================');
         }
+
+        setupMutationObserver() {
+            this.log('Configurando MutationObserver', 'setup');
+            try {
+                let timeoutId;
+                let lastUpdate = 0;
+                const debounceTime = 1000; // 1 segundo entre atualizações
+
+                const observer = new MutationObserver((mutations) => {
+                    // Verifica se as mutações são relevantes
+                    const relevantMutation = mutations.some(mutation => {
+                        // Verifica apenas mudanças específicas
+                        if (mutation.type === 'childList') {
+                            return Array.from(mutation.addedNodes).some(node => 
+                                node.nodeType === 1 && // Elemento DOM
+                                (node.id === 'component-107' || 
+                                 node.id === 'component-111' ||
+                                 node.classList.contains('gr-group'))
+                            );
+                        }
+                        if (mutation.type === 'attributes') {
+                            return mutation.attributeName === 'aria-selected' ||
+                                   mutation.attributeName === 'style';
+                        }
+                        return false;
+                    });
+
+                    if (!relevantMutation) return;
+
+                    // Implementa debounce
+                    const now = Date.now();
+                    if (now - lastUpdate < debounceTime) {
+                        clearTimeout(timeoutId);
+                    }
+
+                    timeoutId = setTimeout(() => {
+                        const directChatTab = document.querySelector('#component-107');
+                        const directChatContainer = directChatTab?.querySelector('#component-111') || 
+                                                  directChatTab?.querySelector('.gr-group');
+                        
+                        if (directChatContainer && !document.getElementById(CONFIG.panelId)) {
+                            this.log('Container encontrado após mudança, inserindo controles', 'observer');
+                            this.insertControls(directChatContainer);
+                        }
+                        lastUpdate = now;
+                    }, debounceTime);
+                });
+
+                // Configura o observer com opções mais específicas
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['aria-selected', 'style'],
+                    characterData: false
+                });
+                
+                this.log('MutationObserver configurado com sucesso', 'setup');
+            } catch (error) {
+                this.log(`Erro ao configurar MutationObserver: ${error.message}`, 'error');
+            }
+        }
     }
 
-    // Inicializa o Token Maximizer quando a página carregar
-    if (document.readyState === 'loading') {
-        window.addEventListener('load', () => new TokenMaximizer().init());
-    } else {
-        new TokenMaximizer().init();
-    }
+    // Modifique a inicialização para ser mais robusta
+    (function() {
+        let maxAttempts = 10;
+        let currentAttempt = 0;
+        
+        function tryInitialize() {
+            if (document.readyState === 'complete') {
+                const tokenMaximizer = new TokenMaximizer();
+                tokenMaximizer.init().catch(error => {
+                    console.error('Erro ao inicializar:', error);
+                    tokenMaximizer.log(`Erro na tentativa ${currentAttempt + 1}: ${error.message}`, 'error');
+                });
+            } else if (currentAttempt < maxAttempts) {
+                currentAttempt++;
+                setTimeout(tryInitialize, 1000);
+            }
+        }
+
+        // Tenta inicializar quando o DOM estiver pronto
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', tryInitialize);
+        } else {
+            tryInitialize();
+        }
+    })();
 })();
