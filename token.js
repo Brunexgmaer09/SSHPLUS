@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LMSYS Token Maximizer
 // @namespace    https://github.com/seu-usuario/lmsys-token-maximizer
-// @version      1.0.0
+// @version      2.1.1
 // @description  Enhanced token and temperature control for LMSYS Chat with a beautiful interface
 // @author       BrunexCoder
 // @match        *://lmarena.ai/*
@@ -51,19 +51,6 @@
                 background: '#3b82f6',
                 text: '#ffffff'
             }
-        },
-        mobile: {
-            breakpoint: 768, // Breakpoint para dispositivos móveis
-            fontSize: {
-                small: '11px',
-                medium: '12px',
-                large: '13px'
-            },
-            spacing: {
-                small: '6px',
-                medium: '8px',
-                large: '12px'
-            }
         }
     };
 
@@ -71,6 +58,32 @@
     class TokenMaximizer {
         constructor() {
             this.initialized = false;
+            this.debugMode = /Android/.test(navigator.userAgent);
+        }
+
+        log(message, type = 'info') {
+            if (this.debugMode) {
+                const logElement = document.createElement('div');
+                logElement.style.cssText = `
+                    position: fixed;
+                    top: ${document.querySelectorAll('.debug-log').length * 30}px;
+                    left: 10px;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    z-index: 9999;
+                    font-size: 12px;
+                `;
+                logElement.className = 'debug-log';
+                logElement.textContent = `[${type}] ${message}`;
+                document.body.appendChild(logElement);
+                
+                // Remove o log após 5 segundos
+                setTimeout(() => logElement.remove(), 5000);
+                
+                console.log(`[TokenMaximizer] ${message}`);
+            }
         }
 
         // Inicializa o Token Maximizer
@@ -78,6 +91,9 @@
             if (this.initialized) return;
             this.initialized = true;
 
+            this.log('Iniciando Token Maximizer...');
+            this.log(`User Agent: ${navigator.userAgent}`);
+            
             this.setupInitialLoad();
             this.setupMutationObserver();
             this.showCredits();
@@ -124,21 +140,18 @@
             const existingControls = document.getElementById(CONFIG.panelId);
             if (existingControls) existingControls.remove();
 
-            const isMobile = window.innerWidth <= CONFIG.mobile.breakpoint;
-
             const controlsContainer = document.createElement('div');
             controlsContainer.id = CONFIG.panelId;
             controlsContainer.style.cssText = `
                 display: flex;
                 align-items: center;
-                gap: ${isMobile ? '8px' : '16px'};
-                padding: ${isMobile ? '12px' : '16px'};
+                gap: 16px;
+                padding: 16px;
                 margin: 8px 0;
                 border-radius: 12px;
                 background: ${CONFIG.styles.colors.background};
                 border: 1px solid ${CONFIG.styles.colors.border};
                 box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-                ${isMobile ? 'flex-direction: column; width: 100%;' : ''}
             `;
 
             // Título com ícone e estilo do site
@@ -147,17 +160,18 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                ${isMobile ? 'margin-bottom: 8px; width: 100%;' : 'padding-right: 16px; border-right: 1px solid ' + CONFIG.styles.colors.border}
+                padding-right: 16px;
+                border-right: 1px solid ${CONFIG.styles.colors.border};
             `;
 
             const titleIcon = document.createElement('span');
             titleIcon.textContent = '🔧';
-            titleIcon.style.fontSize = isMobile ? '14px' : '16px';
+            titleIcon.style.fontSize = '16px';
 
             const titleText = document.createElement('span');
             titleText.textContent = 'Token Controls';
             titleText.style.cssText = `
-                font-size: ${isMobile ? CONFIG.mobile.fontSize.medium : CONFIG.styles.fontSize.medium};
+                font-size: ${CONFIG.styles.fontSize.medium};
                 font-weight: 600;
                 color: ${CONFIG.styles.colors.text};
             `;
@@ -169,60 +183,49 @@
             controlsWrapper.style.cssText = `
                 display: flex;
                 align-items: center;
-                gap: ${isMobile ? '8px' : '16px'};
+                gap: 16px;
                 flex-grow: 1;
-                ${isMobile ? 'flex-direction: column; width: 100%;' : ''}
             `;
 
-            // Criar controles adaptados para mobile
+            // Criar controles com novo estilo
             const tokenControl = this.createCompactControl(
                 'Max Tokens',
                 'range',
                 {min: 1024, max: 8192, value: CONFIG.defaultTokens, step: 1024},
-                this.modifyInputs.bind(this),
-                isMobile
+                this.modifyInputs.bind(this)
             );
 
             const tempControl = this.createCompactControl(
                 'Temperature',
                 'range',
                 {min: 0, max: 1, value: CONFIG.defaultTemp, step: 0.1},
-                this.modifyTemperature.bind(this),
-                isMobile
+                this.modifyTemperature.bind(this)
             );
 
             controlsWrapper.append(tokenControl, tempControl);
             controlsContainer.append(titleContainer, controlsWrapper);
             targetElement.insertBefore(controlsContainer, targetElement.firstChild);
-
-            // Adiciona listener para redimensionamento
-            window.addEventListener('resize', () => {
-                const newIsMobile = window.innerWidth <= CONFIG.mobile.breakpoint;
-                if (newIsMobile !== isMobile) {
-                    this.insertControls(targetElement);
-                }
-            });
         }
 
-        createCompactControl(label, type, options, onChange, isMobile) {
+        createCompactControl(label, type, options, onChange) {
             const container = document.createElement('div');
             container.style.cssText = `
                 display: flex;
                 align-items: center;
-                gap: ${isMobile ? '8px' : '12px'};
-                padding: ${isMobile ? '6px 8px' : '8px 12px'};
+                gap: 12px;
+                padding: 8px 12px;
                 background: ${CONFIG.styles.colors.secondaryBg};
                 border-radius: 8px;
-                ${isMobile ? 'width: 100%;' : 'flex: 1;'}
+                flex: 1;
             `;
 
             const labelElement = document.createElement('label');
             labelElement.textContent = label;
             labelElement.style.cssText = `
-                font-size: ${isMobile ? CONFIG.mobile.fontSize.small : CONFIG.styles.fontSize.small};
+                font-size: ${CONFIG.styles.fontSize.small};
                 color: ${CONFIG.styles.colors.text};
                 font-weight: 500;
-                min-width: ${isMobile ? '70px' : '80px'};
+                min-width: 80px;
             `;
 
             const inputWrapper = document.createElement('div');
@@ -231,7 +234,7 @@
                 flex: 1;
                 display: flex;
                 align-items: center;
-                gap: ${isMobile ? '6px' : '8px'};
+                gap: 8px;
             `;
 
             const input = document.createElement('input');
@@ -239,17 +242,17 @@
             Object.assign(input, options);
             input.style.cssText = `
                 width: 100%;
-                height: ${isMobile ? '3px' : '4px'};
+                height: 4px;
                 -webkit-appearance: none;
                 background: ${CONFIG.styles.colors.border};
                 border-radius: 4px;
                 cursor: pointer;
-                touch-action: none;
+                transition: all 0.3s ease;
                 
                 &::-webkit-slider-thumb {
                     -webkit-appearance: none;
-                    width: ${isMobile ? '14px' : '16px'};
-                    height: ${isMobile ? '14px' : '16px'};
+                    width: 16px;
+                    height: 16px;
                     border-radius: 50%;
                     background: #3b82f6;
                     border: 2px solid white;
@@ -258,12 +261,30 @@
                     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
                 }
                 
-                /* Estilos específicos para touch */
-                @media (pointer: coarse) {
-                    &::-webkit-slider-thumb {
-                        width: 20px;
-                        height: 20px;
-                    }
+                &::-webkit-slider-thumb:hover {
+                    transform: scale(1.2);
+                    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+                }
+                
+                &::-webkit-slider-thumb:active {
+                    transform: scale(0.95);
+                    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.4);
+                }
+
+                &::-webkit-slider-runnable-track {
+                    width: 100%;
+                    height: 4px;
+                    background: linear-gradient(to right, #3b82f6 var(--value-percent, 50%), rgba(59, 130, 246, 0.1) var(--value-percent, 50%));
+                    border-radius: 4px;
+                    transition: background 0.3s ease;
+                }
+
+                &:focus {
+                    outline: none;
+                }
+                
+                &:hover::-webkit-slider-runnable-track {
+                    background: linear-gradient(to right, #3b82f6 var(--value-percent, 50%), rgba(59, 130, 246, 0.2) var(--value-percent, 50%));
                 }
             `;
 
@@ -295,11 +316,12 @@
 
             const valueLabel = document.createElement('span');
             valueLabel.style.cssText = `
-                font-size: ${isMobile ? CONFIG.mobile.fontSize.small : CONFIG.styles.fontSize.small};
+                font-size: ${CONFIG.styles.fontSize.small};
                 color: ${CONFIG.styles.colors.text};
                 font-family: var(--font-mono);
-                min-width: ${isMobile ? '40px' : '45px'};
+                min-width: 45px;
                 text-align: right;
+                transition: all 0.3s ease;
             `;
             valueLabel.textContent = options.value;
 
@@ -379,204 +401,158 @@
         showCredits() {
             const credits = document.createElement('div');
             credits.textContent = 'Token Maximizer developed by BrunexCoder';
-            credits.style.cssText = `
+            
+            // Adiciona um container para o efeito de borda
+            const creditsContainer = document.createElement('div');
+            creditsContainer.style.cssText = `
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
-                background: ${CONFIG.styles.colors.background};
-                color: ${CONFIG.styles.colors.text};
-                padding: 12px 20px;
-                border-radius: 8px;
-                font-size: ${CONFIG.styles.fontSize.small};
+                padding: 2px; /* Espaço para a borda RGB */
+                border-radius: 10px;
+                background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff, #ff0000);
+                background-size: 400% 400%;
+                animation: gradientBorder 3s ease infinite;
                 z-index: 9999;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                position: relative;
-                overflow: hidden;
-                width: fit-content;
             `;
 
-            // Adiciona dois efeitos de borda RGB
-            const borderEffect1 = document.createElement('div');
-            borderEffect1.style.cssText = `
-                position: absolute;
-                inset: 0;
-                padding: 2px;
-                background: linear-gradient(
-                    90deg,
-                    #ff0000 0%,
-                    #00ff00 33%,
-                    #0000ff 66%,
-                    #ff0000 100%
-                );
-                background-size: 300% 100%;
+            credits.style.cssText = `
+                background: ${CONFIG.styles.colors.background};
+                color: ${CONFIG.styles.colors.text};
+                padding: 10px 15px;
                 border-radius: 8px;
-                opacity: 0.7;
-                -webkit-mask: 
-                    linear-gradient(#fff 0 0) content-box,
-                    linear-gradient(#fff 0 0);
-                -webkit-mask-composite: xor;
-                mask-composite: exclude;
-                animation: borderAnimationRight 3s linear infinite;
+                font-size: ${CONFIG.styles.fontSize.small};
+                font-weight: bold;
+                text-align: center;
             `;
 
-            const borderEffect2 = document.createElement('div');
-            borderEffect2.style.cssText = `
-                position: absolute;
-                inset: 0;
-                padding: 2px;
-                background: linear-gradient(
-                    90deg,
-                    #0000ff 0%,
-                    #ff0000 33%,
-                    #00ff00 66%,
-                    #0000ff 100%
-                );
-                background-size: 300% 100%;
-                border-radius: 8px;
-                opacity: 0.5;
-                -webkit-mask: 
-                    linear-gradient(#fff 0 0) content-box,
-                    linear-gradient(#fff 0 0);
-                -webkit-mask-composite: xor;
-                mask-composite: exclude;
-                animation: borderAnimationLeft 4s linear infinite;
-            `;
-
-            // Adiciona as animações
+            // Adiciona a animação do gradiente
             const style = document.createElement('style');
             style.textContent = `
-                @keyframes borderAnimationRight {
-                    0% { background-position: 0% 0; }
-                    100% { background-position: 150% 0; }
-                }
-                @keyframes borderAnimationLeft {
-                    0% { background-position: 150% 0; }
-                    100% { background-position: 0% 0; }
+                @keyframes gradientBorder {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
                 }
             `;
             document.head.appendChild(style);
 
-            credits.appendChild(borderEffect1);
-            credits.appendChild(borderEffect2);
-            document.body.appendChild(credits);
+            creditsContainer.appendChild(credits);
+            document.body.appendChild(creditsContainer);
 
             setTimeout(() => {
-                credits.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                credits.style.opacity = '0';
-                credits.style.transform = 'translateY(20px)';
-                setTimeout(() => credits.remove(), 500);
+                creditsContainer.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                creditsContainer.style.opacity = '0';
+                creditsContainer.style.transform = 'translateY(20px)';
+                setTimeout(() => creditsContainer.remove(), 500);
             }, 5000);
         }
 
         showTutorialArrow() {
+            // Verifica se é a primeira execução desta versão
             if (localStorage.getItem(CONFIG.firstRunKey)) return;
             
-            const checkAndShowTutorial = () => {
-                const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
-                    span => span.textContent === 'Token Controls'
-                );
-                
-                if (!tokenControlsText) {
-                    setTimeout(checkAndShowTutorial, 500);
-                    return;
-                }
-                
-                const textRect = tokenControlsText.getBoundingClientRect();
-                const messageWidth = 220;
-                
-                const arrowContainer = document.createElement('div');
-                arrowContainer.style.cssText = `
-                    position: fixed;
-                    top: ${textRect.top - 18}px;
-                    left: ${textRect.left - messageWidth + 60}px;
-                    transform: translateY(-50%);
-                    z-index: 9999;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    animation: bounceArrow 2s infinite;
-                    pointer-events: none;
-                `;
-
-                // Atualiza o estilo da mensagem
-                const message = document.createElement('div');
-                message.style.cssText = `
-                    background: ${CONFIG.styles.colors.tutorial.background};
-                    color: ${CONFIG.styles.colors.tutorial.text};
-                    padding: 12px 16px;
-                    border-radius: 8px;
-                    font-size: ${CONFIG.styles.fontSize.medium};
-                    font-weight: 500;
-                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-                    max-width: ${messageWidth}px;
-                    line-height: 1.4;
-                    text-align: right;
-                    letter-spacing: 0.3px;
-                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-                    ${isMobile ? `
-                        font-size: ${CONFIG.mobile.fontSize.small};
-                        max-width: 180px;
-                        padding: 8px 12px;
-                    ` : ''}
-                `;
-                message.textContent = '🎉 Os controles de token foram movidos para cá! Agora você pode ajustar facilmente os tokens e temperatura.';
-
-                // Atualiza a seta
-                const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                arrow.setAttribute('width', '40');
-                arrow.setAttribute('height', '40');
-                arrow.setAttribute('viewBox', '0 0 24 24');
-                arrow.style.cssText = `
-                    fill: none;
-                    stroke: #ffffff;
-                    stroke-width: 2.5;
-                    stroke-linecap: round;
-                    stroke-linejoin: round;
-                    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-                `;
-
-                const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
-                arrow.appendChild(arrowPath);
-
-                // Atualiza a animação
-                const style = document.createElement('style');
-                style.textContent = `
-                    @keyframes bounceArrow {
-                        0%, 100% { transform: translateX(0); }
-                        50% { transform: translateX(10px); }
-                    }
-                    
-                    @keyframes fadeOut {
-                        from { opacity: 1; transform: translateY(0); }
-                        to { opacity: 0; transform: translateY(-10px); }
-                    }
-                `;
-                document.head.appendChild(style);
-
-                arrowContainer.append(message, arrow);
-                document.body.appendChild(arrowContainer);
-
-                // Remove o tutorial após 10 segundos
-                setTimeout(() => {
-                    arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
-                    setTimeout(() => arrowContainer.remove(), 500);
-                }, 10000);
-
-                // Marca como já exibido apenas se a mensagem foi realmente mostrada
-                localStorage.setItem(CONFIG.firstRunKey, 'true');
-            };
-
             // Observa cliques no botão Direct Chat
             const directChatButton = document.querySelector('button[aria-controls="component-107"]');
-            if (directChatButton) {
-                directChatButton.addEventListener('click', () => {
-                    setTimeout(checkAndShowTutorial, 500);
-                }, { once: true });
-            } else {
-                // Se não encontrar o botão, tenta mostrar o tutorial mesmo assim
-                setTimeout(checkAndShowTutorial, 1000);
-            }
+            if (!directChatButton) return;
+
+            directChatButton.addEventListener('click', () => {
+                setTimeout(() => {
+                    // Encontra o texto "Token Controls"
+                    const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
+                        span => span.textContent === 'Token Controls'
+                    );
+                    
+                    if (!tokenControlsText) return;
+                    
+                    const textRect = tokenControlsText.getBoundingClientRect();
+                    const messageWidth = 220;
+                    
+                    const arrowContainer = document.createElement('div');
+                    arrowContainer.style.cssText = `
+                        position: fixed;
+                        top: ${textRect.top - 18}px;
+                        left: ${textRect.left - messageWidth + 60}px;
+                        transform: translateY(-50%);
+                        z-index: 9999;
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        animation: bounceArrow 2s infinite;
+                        pointer-events: none;
+                    `;
+
+                    // Atualiza o estilo da mensagem
+                    const message = document.createElement('div');
+                    message.style.cssText = `
+                        background: ${CONFIG.styles.colors.tutorial.background};
+                        color: ${CONFIG.styles.colors.tutorial.text};
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        font-size: ${CONFIG.styles.fontSize.medium};
+                        font-weight: 500;
+                        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                        max-width: ${messageWidth}px;
+                        line-height: 1.4;
+                        text-align: right;
+                        letter-spacing: 0.3px;
+                        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                    `;
+                    message.textContent = '🎉 Os controles de token foram movidos para cá! Agora você pode ajustar facilmente os tokens e temperatura.';
+
+                    // Atualiza a seta
+                    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    arrow.setAttribute('width', '40');
+                    arrow.setAttribute('height', '40');
+                    arrow.setAttribute('viewBox', '0 0 24 24');
+                    arrow.style.cssText = `
+                        fill: none;
+                        stroke: #ffffff;
+                        stroke-width: 2.5;
+                        stroke-linecap: round;
+                        stroke-linejoin: round;
+                        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+                    `;
+
+                    const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
+                    arrow.appendChild(arrowPath);
+
+                    // Atualiza a animação
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        @keyframes bounceArrow {
+                            0%, 100% { transform: translateX(0); }
+                            50% { transform: translateX(10px); }
+                        }
+                        
+                        
+                        @keyframes fadeOut {
+                            from { opacity: 1; transform: translateY(0); }
+                            to { opacity: 0; transform: translateY(-10px); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+
+                    arrowContainer.append(message, arrow);
+                    document.body.appendChild(arrowContainer);
+
+                    // Remove o tutorial após 10 segundos
+                    setTimeout(() => {
+                        arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
+                        setTimeout(() => arrowContainer.remove(), 500);
+                    }, 10000);
+
+                    // Marca como já exibido
+                    localStorage.setItem(CONFIG.firstRunKey, 'true');
+                }, 500); // Delay para garantir que os elementos estejam carregados
+            }, { once: true }); // Garante que o evento só seja disparado uma vez
+        }
+
+        resetTutorial() {
+            localStorage.removeItem(CONFIG.firstRunKey);
+            this.log('Tutorial reset realizado com sucesso');
         }
     }
 
