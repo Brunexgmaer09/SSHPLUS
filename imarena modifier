@@ -1,15 +1,21 @@
 // ==UserScript==
 // @name         Chatbot Arena Token Maximizer
 // @namespace    https://github.com/Brunexgmaer09/SSHPLUS/blob/main/imarena%20modifier
-// @version      2.7.0
+// @version      2.7.1
 // @description  Enhanced token and temperature control for LMSYS Chat with a beautiful interface
 // @author       BrunexCoder
 // @match        *://lmarena.ai/*
 // @match        *://arena.lmsys.org/*
 // @match        *://chat.lmsys.org/*
 // @match        https://lmarena.ai/
+// @match        https://arena.lmsys.org/
+// @match        https://chat.lmsys.org/
+// @include      /^https?:\/\/(www\.)?(lmarena\.ai|arena\.lmsys\.org|chat\.lmsys\.org)\/.*$/
 // @icon         https://chat.lmsys.org/favicon.ico
-// @grant        none
+// @grant        GM_log
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @run-at       document-start
 // @license      MIT
 // @downloadURL https://update.greasyfork.org/scripts/514861/Chatbot%20Arena%20Token%20Maximizer.user.js
 // @updateURL https://update.greasyfork.org/scripts/514861/Chatbot%20Arena%20Token%20Maximizer.meta.js
@@ -35,17 +41,18 @@
             { value: 200000, label: '200K' }
         ],
         // Sem restrições de modelos - todos podem usar qualquer token
-        firstRunKey: 'tokenMaximizer_firstRun_v6',
+        firstRunKey: 'tokenMaximizer_firstRun_v7',
+        debugKey: 'tokenMaximizer_debug_mode',
         styles: {
             colors: {
                 primary: '#3b82f6',
                 primaryDark: '#2563eb',
                 primaryLight: '#60a5fa',
-                background: 'var(--background-fill-primary)',
-                secondaryBg: 'var(--background-fill-secondary)',
-                border: 'var(--border-color-primary)',
-                text: 'var(--body-text-color)',
-                accent: 'var(--link-text-color)',
+                background: 'var(--background-fill-primary, #ffffff)',
+                secondaryBg: 'var(--background-fill-secondary, #f9fafb)',
+                border: 'var(--border-color-primary, #e5e7eb)',
+                text: 'var(--body-text-color, #111827)',
+                accent: 'var(--link-text-color, #2563eb)',
                 slider: {
                     track: '#e2e8f0',
                     thumb: '#3b82f6',
@@ -74,16 +81,60 @@
     class TokenMaximizer {
         constructor() {
             this.initialized = false;
-            this.debugMode = false; // Desabilitado o modo debug por padrão
+            this.debugMode = this.getDebugMode(); // Verifica se o modo debug está ativado
             this.isMobile = this.detectMobileDevice(); // Detecta se é dispositivo móvel
             this.attemptCount = 0; // Contador de tentativas de inicialização
-            this.maxAttempts = 10; // Número máximo de tentativas
+            this.maxAttempts = 20; // Aumentado o número máximo de tentativas
+            this.initInterval = null; // Intervalo para tentativas de inicialização
+            this.initTimeout = null; // Timeout para inicialização
 
             // Inicializa com o valor padrão do site, mas será ajustado
             this.currentTokenValue = CONFIG.initialTokens;
 
             // Armazena o modelo selecionado atualmente
             this.currentModel = null;
+            
+            // Registra que o script foi carregado
+            this.consoleLog('Script Token Maximizer carregado!');
+        }
+        
+        // Obtém o estado do modo debug
+        getDebugMode() {
+            try {
+                // Tenta usar GM_getValue se disponível
+                if (typeof GM_getValue === 'function') {
+                    return GM_getValue(CONFIG.debugKey, false);
+                }
+                // Fallback para localStorage
+                return localStorage.getItem(CONFIG.debugKey) === 'true';
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // Define o modo debug
+        setDebugMode(value) {
+            try {
+                // Tenta usar GM_setValue se disponível
+                if (typeof GM_setValue === 'function') {
+                    GM_setValue(CONFIG.debugKey, value);
+                }
+                // Fallback para localStorage
+                localStorage.setItem(CONFIG.debugKey, value.toString());
+                this.debugMode = value;
+            } catch (e) {
+                console.error('Erro ao definir modo debug:', e);
+            }
+        }
+        
+        // Log no console (sempre exibido)
+        consoleLog(message) {
+            // Tenta usar GM_log se disponível (melhor para Tampermonkey)
+            if (typeof GM_log === 'function') {
+                GM_log(`[TokenMaximizer] ${message}`);
+            } else {
+                console.log(`[TokenMaximizer] ${message}`);
+            }
         }
 
         // Detecta se o dispositivo é móvel
@@ -96,51 +147,187 @@
             // Verifica se a largura da tela é típica de dispositivos móveis
             const isMobileWidth = window.innerWidth <= 768;
             
-            return mobileRegex.test(userAgent) || isMobileWidth;
+            const isMobile = mobileRegex.test(userAgent) || isMobileWidth;
+            this.consoleLog(`Detecção de dispositivo móvel: ${isMobile ? 'Sim' : 'Não'}`);
+            return isMobile;
         }
 
         log(message, type = 'info') {
             if (this.debugMode) {
-                const logElement = document.createElement('div');
-                logElement.style.cssText = `
-                    position: fixed;
-                    top: ${document.querySelectorAll('.debug-log').length * 30}px;
-                    left: 10px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    padding: 5px 10px;
-                    border-radius: 5px;
-                    z-index: 9999;
-                    font-size: 12px;
-                `;
-                logElement.className = 'debug-log';
-                logElement.textContent = `[${type}] ${message}`;
-                document.body.appendChild(logElement);
+                // Log no console
+                this.consoleLog(`[${type}] ${message}`);
+                
+                // Log visual na página
+                try {
+                    const logElement = document.createElement('div');
+                    logElement.style.cssText = `
+                        position: fixed;
+                        top: ${document.querySelectorAll('.debug-log').length * 30}px;
+                        left: 10px;
+                        background: rgba(0,0,0,0.8);
+                        color: white;
+                        padding: 5px 10px;
+                        border-radius: 5px;
+                        z-index: 9999;
+                        font-size: 12px;
+                    `;
+                    logElement.className = 'debug-log';
+                    logElement.textContent = `[${type}] ${message}`;
+                    document.body.appendChild(logElement);
 
-                // Remove o log após 5 segundos
-                setTimeout(() => logElement.remove(), 5000);
-
-                console.log(`[TokenMaximizer] ${message}`);
+                    // Remove o log após 5 segundos
+                    setTimeout(() => {
+                        if (logElement.parentNode) {
+                            logElement.remove();
+                        }
+                    }, 5000);
+                } catch (e) {
+                    this.consoleLog(`Erro ao criar log visual: ${e.message}`);
+                }
             }
         }
 
         // Inicializa o Token Maximizer
         init() {
-            if (this.initialized) return;
+            this.consoleLog('Iniciando Token Maximizer...');
             
-            this.log('Iniciando Token Maximizer...');
-            this.log(`User Agent: ${navigator.userAgent}`);
-            this.log(`Dispositivo móvel: ${this.isMobile ? 'Sim' : 'Não'}`);
-            this.log(`Largura da tela: ${window.innerWidth}px`);
+            if (this.initialized) {
+                this.consoleLog('Token Maximizer já inicializado, ignorando.');
+                return;
+            }
             
-            // Tenta inicializar várias vezes para garantir que os elementos estejam carregados
-            this.attemptInitialization();
+            // Registra informações do ambiente
+            this.consoleLog(`User Agent: ${navigator.userAgent}`);
+            this.consoleLog(`Dispositivo móvel: ${this.isMobile ? 'Sim' : 'Não'}`);
+            this.consoleLog(`Largura da tela: ${window.innerWidth}px`);
+            this.consoleLog(`URL: ${window.location.href}`);
+            
+            // Adiciona botão de debug no canto da tela
+            this.addDebugButton();
+            
+            // Inicia tentativas de inicialização
+            this.startInitializationAttempts();
             
             // Adiciona um listener para mudanças na orientação do dispositivo
             window.addEventListener('resize', () => {
                 this.isMobile = this.detectMobileDevice();
                 this.refreshControls();
             });
+            
+            // Adiciona listener para mudanças de URL (SPA)
+            this.setupUrlChangeListener();
+        }
+        
+        // Adiciona botão de debug no canto da tela
+        addDebugButton() {
+            try {
+                const debugButton = document.createElement('button');
+                debugButton.textContent = 'TM Debug';
+                debugButton.style.cssText = `
+                    position: fixed;
+                    bottom: 5px;
+                    left: 5px;
+                    background: rgba(0,0,0,0.5);
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 10px;
+                    z-index: 9999;
+                    opacity: 0.3;
+                    cursor: pointer;
+                `;
+                
+                debugButton.addEventListener('mouseover', () => {
+                    debugButton.style.opacity = '1';
+                });
+                
+                debugButton.addEventListener('mouseout', () => {
+                    debugButton.style.opacity = '0.3';
+                });
+                
+                debugButton.addEventListener('click', () => {
+                    this.setDebugMode(!this.debugMode);
+                    this.consoleLog(`Modo debug ${this.debugMode ? 'ativado' : 'desativado'}`);
+                    
+                    if (this.debugMode) {
+                        // Exibe informações de diagnóstico
+                        this.log('=== DIAGNÓSTICO DO TOKEN MAXIMIZER ===');
+                        this.log(`Versão: 2.7.1`);
+                        this.log(`User Agent: ${navigator.userAgent}`);
+                        this.log(`Dispositivo móvel: ${this.isMobile ? 'Sim' : 'Não'}`);
+                        this.log(`Largura da tela: ${window.innerWidth}px`);
+                        this.log(`URL: ${window.location.href}`);
+                        this.log(`Inicializado: ${this.initialized ? 'Sim' : 'Não'}`);
+                        this.log(`Tentativas: ${this.attemptCount}/${this.maxAttempts}`);
+                        this.log(`Painel existe: ${document.getElementById(CONFIG.panelId) ? 'Sim' : 'Não'}`);
+                        
+                        // Reinicia a inicialização
+                        this.attemptCount = 0;
+                        this.initialized = false;
+                        this.startInitializationAttempts();
+                    }
+                });
+                
+                document.body.appendChild(debugButton);
+            } catch (e) {
+                this.consoleLog(`Erro ao adicionar botão de debug: ${e.message}`);
+            }
+        }
+        
+        // Configura listener para mudanças de URL (para SPAs)
+        setupUrlChangeListener() {
+            // Monitora mudanças na URL para SPAs
+            let lastUrl = window.location.href;
+            
+            // Verifica periodicamente se a URL mudou
+            setInterval(() => {
+                if (lastUrl !== window.location.href) {
+                    this.consoleLog(`URL mudou: ${lastUrl} -> ${window.location.href}`);
+                    lastUrl = window.location.href;
+                    
+                    // Reinicia a inicialização
+                    if (this.initialized) {
+                        this.consoleLog('Reiniciando inicialização devido à mudança de URL');
+                        this.attemptCount = 0;
+                        this.initialized = false;
+                        this.startInitializationAttempts();
+                    }
+                }
+            }, 1000);
+        }
+        
+        // Inicia tentativas de inicialização
+        startInitializationAttempts() {
+            // Limpa intervalos anteriores
+            if (this.initInterval) {
+                clearInterval(this.initInterval);
+            }
+            if (this.initTimeout) {
+                clearTimeout(this.initTimeout);
+            }
+            
+            // Tenta inicializar imediatamente
+            this.attemptInitialization();
+            
+            // Configura tentativas periódicas
+            this.initInterval = setInterval(() => {
+                if (this.initialized || this.attemptCount >= this.maxAttempts) {
+                    clearInterval(this.initInterval);
+                    this.initInterval = null;
+                } else {
+                    this.attemptInitialization();
+                }
+            }, 1000);
+            
+            // Timeout final para última tentativa
+            this.initTimeout = setTimeout(() => {
+                if (!this.initialized) {
+                    this.consoleLog('Última tentativa de inicialização após timeout');
+                    this.attemptCount = this.maxAttempts - 1;
+                    this.attemptInitialization();
+                }
+            }, 15000);
         }
         
         // Tenta inicializar várias vezes
@@ -150,9 +337,16 @@
             this.attemptCount++;
             this.log(`Tentativa de inicialização ${this.attemptCount}/${this.maxAttempts}`);
             
+            // Verifica se o documento está pronto
+            if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+                this.log(`Documento ainda não está pronto: ${document.readyState}`);
+                return;
+            }
+            
             // Tenta diferentes métodos de inicialização
             if (this.tryInitializeControls()) {
                 this.initialized = true;
+                this.log('Inicialização bem-sucedida!');
                 this.setupMutationObserver();
                 this.showCredits();
                 this.setupModelObserver();
@@ -161,14 +355,18 @@
                     this.syncInitialValues();
                     this.showTutorialArrow();
                 }, 1000);
-            } else {
-                // Tenta novamente após um intervalo
-                setTimeout(() => this.attemptInitialization(), 1000);
             }
         }
         
         // Tenta inicializar os controles usando diferentes métodos
         tryInitializeControls() {
+            // Verifica se o painel já existe
+            if (document.getElementById(CONFIG.panelId)) {
+                this.log('Painel já existe, atualizando...');
+                this.refreshControls();
+                return true;
+            }
+            
             // Método 1: Procura pelo container do Direct Chat (método original)
             const directChatButton = document.querySelector('button[aria-controls][class*="svelte"][role="tab"]:not([aria-disabled="true"]):not([aria-selected="false"])');
             if (directChatButton && directChatButton.textContent.includes('Direct Chat')) {
@@ -183,13 +381,14 @@
             }
             
             // Método 2: Procura pelo container de chat principal
-            const chatContainers = document.querySelectorAll('div[class*="chat"], div[class*="conversation"], main');
+            const chatContainers = document.querySelectorAll('div[class*="chat"], div[class*="conversation"], main, form, div[class*="input"]');
             for (const container of chatContainers) {
                 // Verifica se o container tem elementos de chat
                 const hasTextareas = container.querySelectorAll('textarea').length > 0;
                 const hasInputs = container.querySelectorAll('input[type="text"]').length > 0;
+                const hasButtons = container.querySelectorAll('button[type="submit"]').length > 0;
                 
-                if (hasTextareas || hasInputs) {
+                if (hasTextareas || hasInputs || hasButtons) {
                     this.log('Método 2: Container de chat encontrado');
                     this.insertControls(container);
                     return true;
@@ -199,17 +398,47 @@
             // Método 3: Procura por elementos específicos do site
             const modelSelectors = document.querySelectorAll('select, div[role="listbox"], input[role="listbox"]');
             if (modelSelectors.length > 0) {
-                const container = modelSelectors[0].closest('main') || modelSelectors[0].closest('div[class*="chat"]');
-                if (container) {
-                    this.log('Método 3: Container baseado em seletores de modelo encontrado');
-                    this.insertControls(container);
-                    return true;
+                for (const selector of modelSelectors) {
+                    const container = selector.closest('main') || 
+                                     selector.closest('div[class*="chat"]') || 
+                                     selector.closest('form') ||
+                                     selector.parentElement;
+                    
+                    if (container) {
+                        this.log('Método 3: Container baseado em seletores de modelo encontrado');
+                        this.insertControls(container);
+                        return true;
+                    }
                 }
             }
             
-            // Método 4: Último recurso - insere no body
+            // Método 4: Procura por elementos de token ou temperatura
+            const tokenInputs = document.querySelectorAll('input[aria-label*="token"], input[placeholder*="token"], input[aria-label*="temp"], input[placeholder*="temp"]');
+            if (tokenInputs.length > 0) {
+                for (const input of tokenInputs) {
+                    const container = input.closest('form') || 
+                                     input.closest('div') || 
+                                     input.parentElement;
+                    
+                    if (container) {
+                        this.log('Método 4: Container baseado em inputs de token/temperatura encontrado');
+                        this.insertControls(container);
+                        return true;
+                    }
+                }
+            }
+            
+            // Método 5: Procura por qualquer formulário na página
+            const forms = document.querySelectorAll('form');
+            if (forms.length > 0) {
+                this.log('Método 5: Formulário encontrado');
+                this.insertControls(forms[0]);
+                return true;
+            }
+            
+            // Método 6: Último recurso - insere no body
             if (this.attemptCount >= this.maxAttempts - 1) {
-                this.log('Método 4: Inserindo no body como último recurso');
+                this.log('Método 6: Inserindo no body como último recurso');
                 const bodyContainer = document.createElement('div');
                 bodyContainer.id = 'token-maximizer-body-container';
                 bodyContainer.style.cssText = `
@@ -334,6 +563,7 @@
                 // Verifica se os controles existem
                 if (!document.getElementById(CONFIG.panelId)) {
                     // Tenta inicializar novamente
+                    this.log('Controles removidos, tentando reinicializar');
                     this.attemptCount = 0;
                     this.initialized = false;
                     this.attemptInitialization();
@@ -349,406 +579,492 @@
         }
 
         insertControls(targetElement) {
-            const existingControls = document.getElementById(CONFIG.panelId);
-            if (existingControls) existingControls.remove();
+            try {
+                const existingControls = document.getElementById(CONFIG.panelId);
+                if (existingControls) existingControls.remove();
 
-            const controlsContainer = document.createElement('div');
-            controlsContainer.id = CONFIG.panelId;
-            
-            // Layout responsivo baseado no tipo de dispositivo
-            if (this.isMobile) {
-                controlsContainer.style.cssText = `
+                const controlsContainer = document.createElement('div');
+                controlsContainer.id = CONFIG.panelId;
+                
+                // Layout responsivo baseado no tipo de dispositivo
+                if (this.isMobile) {
+                    controlsContainer.style.cssText = `
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        padding: 12px;
+                        margin: 8px 0;
+                        border-radius: 12px;
+                        background: ${CONFIG.styles.colors.background};
+                        border: 1px solid ${CONFIG.styles.colors.border};
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+                        transition: all 0.3s ease;
+                        width: calc(100% - 24px);
+                    `;
+                } else {
+                    controlsContainer.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        gap: 16px;
+                        padding: 16px;
+                        margin: 8px 0;
+                        border-radius: 12px;
+                        background: ${CONFIG.styles.colors.background};
+                        border: 1px solid ${CONFIG.styles.colors.border};
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+                        transition: all 0.3s ease;
+                    `;
+                }
+
+                // Título com ícone e estilo do site
+                const titleContainer = document.createElement('div');
+                titleContainer.style.cssText = this.isMobile ? `
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 8px;
+                    padding-bottom: 8px;
+                    border-bottom: 1px solid ${CONFIG.styles.colors.border};
+                ` : `
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding-right: 16px;
+                    border-right: 1px solid ${CONFIG.styles.colors.border};
+                `;
+
+                const titleIcon = document.createElement('span');
+                titleIcon.textContent = '🔧';
+                titleIcon.style.fontSize = '16px';
+
+                const titleText = document.createElement('span');
+                titleText.textContent = 'Token Controls';
+                titleText.style.cssText = `
+                    font-size: ${CONFIG.styles.fontSize.medium};
+                    font-weight: 600;
+                    color: ${CONFIG.styles.colors.text};
+                `;
+
+                titleContainer.append(titleIcon, titleText);
+
+                // Container para os controles
+                const controlsWrapper = document.createElement('div');
+                controlsWrapper.style.cssText = this.isMobile ? `
                     display: flex;
                     flex-direction: column;
                     gap: 12px;
-                    padding: 12px;
-                    margin: 8px 0;
-                    border-radius: 12px;
-                    background: ${CONFIG.styles.colors.background};
-                    border: 1px solid ${CONFIG.styles.colors.border};
-                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-                    transition: all 0.3s ease;
-                    width: calc(100% - 24px);
-                `;
-            } else {
-                controlsContainer.style.cssText = `
+                    flex-grow: 1;
+                ` : `
                     display: flex;
                     align-items: center;
                     gap: 16px;
-                    padding: 16px;
-                    margin: 8px 0;
-                    border-radius: 12px;
-                    background: ${CONFIG.styles.colors.background};
-                    border: 1px solid ${CONFIG.styles.colors.border};
-                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-                    transition: all 0.3s ease;
+                    flex-grow: 1;
                 `;
+
+                // Criar controles de tokens com botões de seleção rápida
+                const tokenControl = this.createTokenControl();
+
+                // Criar controle de temperatura com novo estilo
+                const tempControl = this.createCompactControl(
+                    'Temperature',
+                    'range',
+                    {min: 0, max: 1, value: CONFIG.defaultTemp, step: 0.1},
+                    this.modifyTemperature.bind(this)
+                );
+
+                controlsWrapper.append(tokenControl, tempControl);
+                controlsContainer.append(titleContainer, controlsWrapper);
+                
+                // Insere no início do elemento alvo
+                if (targetElement.firstChild) {
+                    targetElement.insertBefore(controlsContainer, targetElement.firstChild);
+                } else {
+                    targetElement.appendChild(controlsContainer);
+                }
+
+                // Detecta o modelo atual
+                setTimeout(() => this.detectCurrentModel(), 500);
+                
+                this.log('Controles inseridos com sucesso');
+                return true;
+            } catch (e) {
+                this.consoleLog(`Erro ao inserir controles: ${e.message}`);
+                return false;
             }
-
-            // Título com ícone e estilo do site
-            const titleContainer = document.createElement('div');
-            titleContainer.style.cssText = this.isMobile ? `
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid ${CONFIG.styles.colors.border};
-            ` : `
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding-right: 16px;
-                border-right: 1px solid ${CONFIG.styles.colors.border};
-            `;
-
-            const titleIcon = document.createElement('span');
-            titleIcon.textContent = '🔧';
-            titleIcon.style.fontSize = '16px';
-
-            const titleText = document.createElement('span');
-            titleText.textContent = 'Token Controls';
-            titleText.style.cssText = `
-                font-size: ${CONFIG.styles.fontSize.medium};
-                font-weight: 600;
-                color: ${CONFIG.styles.colors.text};
-            `;
-
-            titleContainer.append(titleIcon, titleText);
-
-            // Container para os controles
-            const controlsWrapper = document.createElement('div');
-            controlsWrapper.style.cssText = this.isMobile ? `
-                display: flex;
-                flex-direction: column;
-                gap: 12px;
-                flex-grow: 1;
-            ` : `
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                flex-grow: 1;
-            `;
-
-            // Criar controles de tokens com botões de seleção rápida
-            const tokenControl = this.createTokenControl();
-
-            // Criar controle de temperatura com novo estilo
-            const tempControl = this.createCompactControl(
-                'Temperature',
-                'range',
-                {min: 0, max: 1, value: CONFIG.defaultTemp, step: 0.1},
-                this.modifyTemperature.bind(this)
-            );
-
-            controlsWrapper.append(tokenControl, tempControl);
-            controlsContainer.append(titleContainer, controlsWrapper);
-            
-            // Insere no início do elemento alvo
-            if (targetElement.firstChild) {
-                targetElement.insertBefore(controlsContainer, targetElement.firstChild);
-            } else {
-                targetElement.appendChild(controlsContainer);
-            }
-
-            // Detecta o modelo atual
-            setTimeout(() => this.detectCurrentModel(), 500);
         }
 
         createTokenControl() {
-            const container = document.createElement('div');
-            container.style.cssText = `
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                padding: 8px 12px;
-                background: ${CONFIG.styles.colors.secondaryBg};
-                border-radius: 8px;
-                flex: 1;
-            `;
-
-            const labelRow = document.createElement('div');
-            labelRow.style.cssText = `
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            `;
-
-            const labelElement = document.createElement('label');
-            labelElement.textContent = 'Max Tokens';
-            labelElement.style.cssText = `
-                font-size: ${CONFIG.styles.fontSize.small};
-                color: ${CONFIG.styles.colors.text};
-                font-weight: 500;
-            `;
-
-            const valueLabel = document.createElement('span');
-            valueLabel.style.cssText = `
-                font-size: ${CONFIG.styles.fontSize.small};
-                color: ${CONFIG.styles.colors.text};
-                font-family: var(--font-mono);
-                transition: all 0.3s ease;
-                font-weight: 500;
-            `;
-            valueLabel.textContent = this.currentTokenValue.toLocaleString();
-
-            labelRow.append(labelElement, valueLabel);
-
-            // Cria os botões de seleção rápida
-            const buttonsRow = document.createElement('div');
-            buttonsRow.style.cssText = `
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-                margin-top: 4px;
-            `;
-
-            // Ajusta o número de botões por linha com base no dispositivo
-            const buttonsPerRow = this.isMobile ? 4 : CONFIG.tokenOptions.length;
-            const buttonWidth = this.isMobile ? `calc(25% - 6px)` : `calc(100% / ${CONFIG.tokenOptions.length} - 8px)`;
-
-            CONFIG.tokenOptions.forEach(option => {
-                const button = document.createElement('button');
-                const isActive = this.currentTokenValue === option.value;
-
-                button.style.cssText = `
-                    flex: 0 0 ${buttonWidth};
-                    padding: 4px 0;
-                    border-radius: 6px;
-                    font-size: ${CONFIG.styles.fontSize.small};
-                    font-weight: 500;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    background: ${isActive ? CONFIG.styles.colors.primary : 'transparent'};
-                    color: ${isActive ? '#ffffff' : CONFIG.styles.colors.text};
-                    border: 1px solid ${isActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border};
-                    outline: none;
+            try {
+                const container = document.createElement('div');
+                container.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    background: ${CONFIG.styles.colors.secondaryBg};
+                    border-radius: 8px;
+                    flex: 1;
                 `;
 
-                button.textContent = option.label;
+                const labelRow = document.createElement('div');
+                labelRow.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                `;
 
-                button.addEventListener('mouseover', () => {
-                    if (!isActive) {
-                        button.style.background = `${CONFIG.styles.colors.primaryLight}20`;
+                const labelElement = document.createElement('label');
+                labelElement.textContent = 'Max Tokens';
+                labelElement.style.cssText = `
+                    font-size: ${CONFIG.styles.fontSize.small};
+                    color: ${CONFIG.styles.colors.text};
+                    font-weight: 500;
+                `;
+
+                const valueLabel = document.createElement('span');
+                valueLabel.style.cssText = `
+                    font-size: ${CONFIG.styles.fontSize.small};
+                    color: ${CONFIG.styles.colors.text};
+                    font-family: var(--font-mono, monospace);
+                    transition: all 0.3s ease;
+                    font-weight: 500;
+                `;
+                valueLabel.textContent = this.currentTokenValue.toLocaleString();
+
+                labelRow.append(labelElement, valueLabel);
+
+                // Cria os botões de seleção rápida
+                const buttonsRow = document.createElement('div');
+                buttonsRow.style.cssText = `
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-top: 4px;
+                `;
+
+                // Ajusta o número de botões por linha com base no dispositivo
+                const buttonsPerRow = this.isMobile ? 4 : CONFIG.tokenOptions.length;
+                const buttonWidth = this.isMobile ? `calc(25% - 6px)` : `calc(100% / ${CONFIG.tokenOptions.length} - 8px)`;
+
+                CONFIG.tokenOptions.forEach(option => {
+                    const button = document.createElement('button');
+                    const isActive = this.currentTokenValue === option.value;
+
+                    button.style.cssText = `
+                        flex: 0 0 ${buttonWidth};
+                        padding: 4px 0;
+                        border-radius: 6px;
+                        font-size: ${CONFIG.styles.fontSize.small};
+                        font-weight: 500;
+                        cursor: pointer;
+                        transition: all 0.2s ease;
+                        background: ${isActive ? CONFIG.styles.colors.primary : 'transparent'};
+                        color: ${isActive ? '#ffffff' : CONFIG.styles.colors.text};
+                        border: 1px solid ${isActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border};
+                        outline: none;
+                        -webkit-tap-highlight-color: transparent;
+                    `;
+
+                    button.textContent = option.label;
+
+                    // Eventos para desktop
+                    if (!this.isMobile) {
+                        button.addEventListener('mouseover', () => {
+                            if (!isActive) {
+                                button.style.background = `${CONFIG.styles.colors.primaryLight}20`;
+                            }
+                        });
+
+                        button.addEventListener('mouseout', () => {
+                            if (!isActive) {
+                                button.style.background = 'transparent';
+                            }
+                        });
                     }
-                });
 
-                button.addEventListener('mouseout', () => {
-                    if (!isActive) {
-                        button.style.background = 'transparent';
-                    }
-                });
+                    button.addEventListener('click', () => {
+                        this.setTokenValue(option.value);
 
-                button.addEventListener('click', () => {
-                    this.setTokenValue(option.value);
+                        // Atualiza a aparência de todos os botões
+                        buttonsRow.querySelectorAll('button').forEach(btn => {
+                            const isNowActive = parseInt(btn.dataset.value) === this.currentTokenValue;
+                            btn.style.background = isNowActive ? CONFIG.styles.colors.primary : 'transparent';
+                            btn.style.color = isNowActive ? '#ffffff' : CONFIG.styles.colors.text;
+                            btn.style.borderColor = isNowActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border;
+                        });
 
-                    // Atualiza a aparência de todos os botões
-                    buttonsRow.querySelectorAll('button').forEach(btn => {
-                        const isNowActive = parseInt(btn.dataset.value) === this.currentTokenValue;
-                        btn.style.background = isNowActive ? CONFIG.styles.colors.primary : 'transparent';
-                        btn.style.color = isNowActive ? '#ffffff' : CONFIG.styles.colors.text;
-                        btn.style.borderColor = isNowActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border;
+                        // Atualiza o valor exibido
+                        valueLabel.textContent = this.currentTokenValue.toLocaleString();
+
+                        // Adiciona uma animação ao valor
+                        valueLabel.style.transform = 'scale(1.1)';
+                        valueLabel.style.color = CONFIG.styles.colors.primary;
+                        setTimeout(() => {
+                            valueLabel.style.transform = 'scale(1)';
+                            valueLabel.style.color = CONFIG.styles.colors.text;
+                        }, 200);
                     });
 
-                    // Atualiza o valor exibido
-                    valueLabel.textContent = this.currentTokenValue.toLocaleString();
+                    button.dataset.value = option.value;
+                    buttonsRow.appendChild(button);
+                });
 
-                    // Adiciona uma animação ao valor
+                container.append(labelRow, buttonsRow);
+                return container;
+            } catch (e) {
+                this.consoleLog(`Erro ao criar controle de tokens: ${e.message}`);
+                return document.createElement('div');
+            }
+        }
+
+        setTokenValue(value) {
+            try {
+                this.currentTokenValue = value;
+                this.modifyInputs(value);
+                this.log(`Valor de tokens definido para: ${value}`);
+            } catch (e) {
+                this.consoleLog(`Erro ao definir valor de tokens: ${e.message}`);
+            }
+        }
+
+        createCompactControl(label, type, options, onChange) {
+            try {
+                const container = document.createElement('div');
+                container.style.cssText = this.isMobile ? `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    background: ${CONFIG.styles.colors.secondaryBg};
+                    border-radius: 8px;
+                    flex: 1;
+                ` : `
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 8px 12px;
+                    background: ${CONFIG.styles.colors.secondaryBg};
+                    border-radius: 8px;
+                    flex: 1;
+                `;
+
+                const labelElement = document.createElement('label');
+                labelElement.textContent = label;
+                labelElement.style.cssText = `
+                    font-size: ${CONFIG.styles.fontSize.small};
+                    color: ${CONFIG.styles.colors.text};
+                    font-weight: 500;
+                    min-width: 80px;
+                `;
+
+                const inputWrapper = document.createElement('div');
+                inputWrapper.style.cssText = `
+                    position: relative;
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                `;
+
+                const input = document.createElement('input');
+                input.type = type;
+                Object.assign(input, options);
+                input.style.cssText = `
+                    width: 100%;
+                    height: 4px;
+                    -webkit-appearance: none;
+                    background: ${CONFIG.styles.colors.border};
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    touch-action: manipulation;
+                `;
+
+                // Adiciona estilos específicos para diferentes navegadores
+                const sliderStyles = document.createElement('style');
+                sliderStyles.textContent = `
+                    input[type=range]::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: ${CONFIG.styles.colors.primary};
+                        border: 2px solid white;
+                        cursor: pointer;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+                    }
+                    
+                    input[type=range]::-moz-range-thumb {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: ${CONFIG.styles.colors.primary};
+                        border: 2px solid white;
+                        cursor: pointer;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+                    }
+                    
+                    input[type=range]::-ms-thumb {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 50%;
+                        background: ${CONFIG.styles.colors.primary};
+                        border: 2px solid white;
+                        cursor: pointer;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+                    }
+                    
+                    input[type=range]::-webkit-slider-runnable-track {
+                        width: 100%;
+                        height: 4px;
+                        background: linear-gradient(to right, ${CONFIG.styles.colors.primary} var(--value-percent, 50%), rgba(59, 130, 246, 0.1) var(--value-percent, 50%));
+                        border-radius: 4px;
+                    }
+                    
+                    input[type=range]::-moz-range-track {
+                        width: 100%;
+                        height: 4px;
+                        background: ${CONFIG.styles.colors.border};
+                        border-radius: 4px;
+                    }
+                    
+                    input[type=range]::-ms-track {
+                        width: 100%;
+                        height: 4px;
+                        background: transparent;
+                        border-color: transparent;
+                        color: transparent;
+                    }
+                `;
+                document.head.appendChild(sliderStyles);
+
+                // Adiciona efeito de brilho ao passar o mouse (apenas desktop)
+                if (!this.isMobile) {
+                    input.addEventListener('mouseover', () => {
+                        input.style.filter = 'brightness(1.1)';
+                    });
+
+                    input.addEventListener('mouseout', () => {
+                        input.style.filter = 'brightness(1)';
+                    });
+                }
+
+                input.addEventListener('input', (e) => {
+                    const min = parseFloat(e.target.min);
+                    const max = parseFloat(e.target.max);
+                    const val = parseFloat(e.target.value);
+                    const percent = ((val - min) * 100) / (max - min);
+                    e.target.style.setProperty('--value-percent', `${percent}%`);
+
+                    // Adiciona efeito de pulso ao mover o slider
+                    e.target.style.transform = 'scale(1.02)';
+                    setTimeout(() => {
+                        e.target.style.transform = 'scale(1)';
+                    }, 100);
+                });
+
+                const initialPercent = ((options.value - options.min) * 100) / (options.max - options.min);
+                input.style.setProperty('--value-percent', `${initialPercent}%`);
+
+                const valueLabel = document.createElement('span');
+                valueLabel.style.cssText = `
+                    font-size: ${CONFIG.styles.fontSize.small};
+                    color: ${CONFIG.styles.colors.text};
+                    font-family: var(--font-mono, monospace);
+                    min-width: 45px;
+                    text-align: right;
+                    transition: all 0.3s ease;
+                `;
+                valueLabel.textContent = options.value;
+
+                input.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    valueLabel.textContent = type === 'range' && label === 'Max Tokens'
+                        ? Math.round(value).toLocaleString()
+                        : value.toFixed(1);
+
+                    // Anima o valor ao mudar
                     valueLabel.style.transform = 'scale(1.1)';
                     valueLabel.style.color = CONFIG.styles.colors.primary;
                     setTimeout(() => {
                         valueLabel.style.transform = 'scale(1)';
                         valueLabel.style.color = CONFIG.styles.colors.text;
                     }, 200);
+
+                    onChange(value);
                 });
 
-                button.dataset.value = option.value;
-                buttonsRow.appendChild(button);
-            });
-
-            container.append(labelRow, buttonsRow);
-            return container;
-        }
-
-        setTokenValue(value) {
-            this.currentTokenValue = value;
-            this.modifyInputs(value);
-        }
-
-        createCompactControl(label, type, options, onChange) {
-            const container = document.createElement('div');
-            container.style.cssText = this.isMobile ? `
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                padding: 8px 12px;
-                background: ${CONFIG.styles.colors.secondaryBg};
-                border-radius: 8px;
-                flex: 1;
-            ` : `
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 8px 12px;
-                background: ${CONFIG.styles.colors.secondaryBg};
-                border-radius: 8px;
-                flex: 1;
-            `;
-
-            const labelElement = document.createElement('label');
-            labelElement.textContent = label;
-            labelElement.style.cssText = `
-                font-size: ${CONFIG.styles.fontSize.small};
-                color: ${CONFIG.styles.colors.text};
-                font-weight: 500;
-                min-width: 80px;
-            `;
-
-            const inputWrapper = document.createElement('div');
-            inputWrapper.style.cssText = `
-                position: relative;
-                flex: 1;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            `;
-
-            const input = document.createElement('input');
-            input.type = type;
-            Object.assign(input, options);
-            input.style.cssText = `
-                width: 100%;
-                height: 4px;
-                -webkit-appearance: none;
-                background: ${CONFIG.styles.colors.border};
-                border-radius: 4px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-
-                &::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    width: 16px;
-                    height: 16px;
-                    border-radius: 50%;
-                    background: ${CONFIG.styles.colors.primary};
-                    border: 2px solid white;
-                    cursor: pointer;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
-                }
-
-                &::-webkit-slider-thumb:hover {
-                    transform: scale(1.2);
-                    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
-                }
-
-                &::-webkit-slider-thumb:active {
-                    transform: scale(0.95);
-                    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.4);
-                }
-
-                &::-webkit-slider-runnable-track {
-                    width: 100%;
-                    height: 4px;
-                    background: linear-gradient(to right, ${CONFIG.styles.colors.primary} var(--value-percent, 50%), rgba(59, 130, 246, 0.1) var(--value-percent, 50%));
-                    border-radius: 4px;
-                    transition: background 0.3s ease;
-                }
-
-                &:focus {
-                    outline: none;
-                }
-
-                &:hover::-webkit-slider-runnable-track {
-                    background: linear-gradient(to right, ${CONFIG.styles.colors.primary} var(--value-percent, 50%), rgba(59, 130, 246, 0.2) var(--value-percent, 50%));
-                }
-            `;
-
-            // Adiciona efeito de brilho ao passar o mouse
-            input.addEventListener('mouseover', () => {
-                input.style.filter = 'brightness(1.1)';
-            });
-
-            input.addEventListener('mouseout', () => {
-                input.style.filter = 'brightness(1)';
-            });
-
-            input.addEventListener('input', (e) => {
-                const min = parseFloat(e.target.min);
-                const max = parseFloat(e.target.max);
-                const val = parseFloat(e.target.value);
-                const percent = ((val - min) * 100) / (max - min);
-                e.target.style.setProperty('--value-percent', `${percent}%`);
-
-                // Adiciona efeito de pulso ao mover o slider
-                e.target.style.transform = 'scale(1.02)';
-                setTimeout(() => {
-                    e.target.style.transform = 'scale(1)';
-                }, 100);
-            });
-
-            const initialPercent = ((options.value - options.min) * 100) / (options.max - options.min);
-            input.style.setProperty('--value-percent', `${initialPercent}%`);
-
-            const valueLabel = document.createElement('span');
-            valueLabel.style.cssText = `
-                font-size: ${CONFIG.styles.fontSize.small};
-                color: ${CONFIG.styles.colors.text};
-                font-family: var(--font-mono);
-                min-width: 45px;
-                text-align: right;
-                transition: all 0.3s ease;
-            `;
-            valueLabel.textContent = options.value;
-
-            input.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                valueLabel.textContent = type === 'range' && label === 'Max Tokens'
-                    ? Math.round(value).toLocaleString()
-                    : value.toFixed(1);
-
-                // Anima o valor ao mudar
-                valueLabel.style.transform = 'scale(1.1)';
-                valueLabel.style.color = CONFIG.styles.colors.primary;
-                setTimeout(() => {
-                    valueLabel.style.transform = 'scale(1)';
-                    valueLabel.style.color = CONFIG.styles.colors.text;
-                }, 200);
-
-                onChange(value);
-            });
-
-            inputWrapper.append(input, valueLabel);
-            
-            // Layout responsivo para dispositivos móveis
-            if (this.isMobile) {
-                const labelRow = document.createElement('div');
-                labelRow.style.cssText = `
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                `;
-                labelRow.append(labelElement, valueLabel.cloneNode(true));
-                container.append(labelRow, inputWrapper);
+                inputWrapper.append(input, valueLabel);
                 
-                // Remove o valueLabel original do inputWrapper
-                inputWrapper.removeChild(valueLabel);
-            } else {
-                container.append(labelElement, inputWrapper);
+                // Layout responsivo para dispositivos móveis
+                if (this.isMobile) {
+                    const labelRow = document.createElement('div');
+                    labelRow.style.cssText = `
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    `;
+                    labelRow.append(labelElement, valueLabel.cloneNode(true));
+                    container.append(labelRow, inputWrapper);
+                    
+                    // Remove o valueLabel original do inputWrapper
+                    inputWrapper.removeChild(valueLabel);
+                } else {
+                    container.append(labelElement, inputWrapper);
+                }
+                
+                return container;
+            } catch (e) {
+                this.consoleLog(`Erro ao criar controle compacto: ${e.message}`);
+                return document.createElement('div');
             }
-            
-            return container;
         }
 
         // Modifica os inputs de token
         modifyInputs(targetValue) {
-            const inputs = document.querySelectorAll('input[aria-label*="Max output tokens"], input[aria-label*="max tokens"], input[data-testid*="token"], input[placeholder*="token"]');
-            inputs.forEach(input => {
-                if (input.max < targetValue) input.max = targetValue;
-                if (parseInt(input.value) !== targetValue) {
-                    input.value = targetValue;
+            try {
+                const inputs = document.querySelectorAll('input[aria-label*="Max output tokens"], input[aria-label*="max tokens"], input[data-testid*="token"], input[placeholder*="token"]');
+                if (inputs.length === 0) {
+                    this.log('Nenhum input de token encontrado para modificar');
+                }
+                
+                inputs.forEach(input => {
+                    if (input.max < targetValue) input.max = targetValue;
+                    if (parseInt(input.value) !== targetValue) {
+                        input.value = targetValue;
+                        if (input.type === 'range') {
+                            input.style.backgroundSize = '100% 100%';
+                        }
+                        // Dispara eventos nativos e eventos personalizados
+                        ['input', 'change', 'blur'].forEach(eventType => {
+                            input.dispatchEvent(new Event(eventType, { bubbles: true }));
+                        });
+                        // Tenta atualizar o React state se existir
+                        if (input._valueTracker) {
+                            input._valueTracker.setValue('');
+                        }
+                    }
+                });
+            } catch (e) {
+                this.consoleLog(`Erro ao modificar inputs: ${e.message}`);
+            }
+        }
+
+        // Modifica a temperatura
+        modifyTemperature(value) {
+            try {
+                const inputs = document.querySelectorAll('input[aria-label*="Temperature"], input[aria-label*="temperatura"], input[data-testid*="temp"], input[placeholder*="temp"]');
+                if (inputs.length === 0) {
+                    this.log('Nenhum input de temperatura encontrado para modificar');
+                }
+                
+                inputs.forEach(input => {
+                    input.value = value;
                     if (input.type === 'range') {
-                        input.style.backgroundSize = '100% 100%';
+                        input.style.backgroundSize = `${value * 100}% 100%`;
                     }
                     // Dispara eventos nativos e eventos personalizados
                     ['input', 'change', 'blur'].forEach(eventType => {
@@ -758,220 +1074,236 @@
                     if (input._valueTracker) {
                         input._valueTracker.setValue('');
                     }
-                }
-            });
-        }
-
-        // Modifica a temperatura
-        modifyTemperature(value) {
-            const inputs = document.querySelectorAll('input[aria-label*="Temperature"], input[aria-label*="temperatura"], input[data-testid*="temp"], input[placeholder*="temp"]');
-            inputs.forEach(input => {
-                input.value = value;
-                if (input.type === 'range') {
-                    input.style.backgroundSize = `${value * 100}% 100%`;
-                }
-                // Dispara eventos nativos e eventos personalizados
-                ['input', 'change', 'blur'].forEach(eventType => {
-                    input.dispatchEvent(new Event(eventType, { bubbles: true }));
                 });
-                // Tenta atualizar o React state se existir
-                if (input._valueTracker) {
-                    input._valueTracker.setValue('');
-                }
-            });
+            } catch (e) {
+                this.consoleLog(`Erro ao modificar temperatura: ${e.message}`);
+            }
         }
 
         // Encontra e clica em botões
         findAndClickButton(action) {
-            const buttonTexts = {
-                regenerate: ['regenerate', 'retry', 'reset'],
-                clear: ['clear', 'new chat']
-            };
+            try {
+                const buttonTexts = {
+                    regenerate: ['regenerate', 'retry', 'reset'],
+                    clear: ['clear', 'new chat']
+                };
 
-            const texts = buttonTexts[action] || [];
-            const buttons = Array.from(document.querySelectorAll('button'));
+                const texts = buttonTexts[action] || [];
+                const buttons = Array.from(document.querySelectorAll('button'));
 
-            const button = buttons.find(btn => {
-                const btnText = btn.textContent.toLowerCase();
-                return texts.some(text => btnText.includes(text));
-            });
+                const button = buttons.find(btn => {
+                    const btnText = btn.textContent.toLowerCase();
+                    return texts.some(text => btnText.includes(text));
+                });
 
-            if (button) {
-                button.click();
-                return true;
+                if (button) {
+                    button.click();
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                this.consoleLog(`Erro ao encontrar e clicar no botão: ${e.message}`);
+                return false;
             }
-            return false;
         }
 
         showCredits() {
-            const credits = document.createElement('div');
-            credits.textContent = 'Token Maximizer desenvolvido por BrunexCoder';
+            try {
+                const credits = document.createElement('div');
+                credits.textContent = 'Token Maximizer desenvolvido por BrunexCoder';
 
-            // Adiciona um container para o efeito de borda
-            const creditsContainer = document.createElement('div');
-            creditsContainer.style.cssText = `
-                position: fixed;
-                bottom: ${this.isMobile ? '10px' : '20px'};
-                right: ${this.isMobile ? '10px' : '20px'};
-                padding: 2px; /* Espaço para a borda RGB */
-                border-radius: 10px;
-                background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff, #ff0000);
-                background-size: 400% 400%;
-                animation: gradientBorder 3s ease infinite;
-                z-index: 9999;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                font-size: ${this.isMobile ? '10px' : CONFIG.styles.fontSize.small};
-            `;
+                // Adiciona um container para o efeito de borda
+                const creditsContainer = document.createElement('div');
+                creditsContainer.style.cssText = `
+                    position: fixed;
+                    bottom: ${this.isMobile ? '10px' : '20px'};
+                    right: ${this.isMobile ? '10px' : '20px'};
+                    padding: 2px; /* Espaço para a borda RGB */
+                    border-radius: 10px;
+                    background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff, #ff0000);
+                    background-size: 400% 400%;
+                    animation: gradientBorder 3s ease infinite;
+                    z-index: 9999;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                    font-size: ${this.isMobile ? '10px' : CONFIG.styles.fontSize.small};
+                `;
 
-            credits.style.cssText = `
-                background: ${CONFIG.styles.colors.background};
-                color: ${CONFIG.styles.colors.text};
-                padding: ${this.isMobile ? '8px 12px' : '10px 15px'};
-                border-radius: 8px;
-                font-weight: bold;
-                text-align: center;
-            `;
+                credits.style.cssText = `
+                    background: ${CONFIG.styles.colors.background};
+                    color: ${CONFIG.styles.colors.text};
+                    padding: ${this.isMobile ? '8px 12px' : '10px 15px'};
+                    border-radius: 8px;
+                    font-weight: bold;
+                    text-align: center;
+                `;
 
-            // Adiciona a animação do gradiente
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes gradientBorder {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-            `;
-            document.head.appendChild(style);
+                // Adiciona a animação do gradiente
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes gradientBorder {
+                        0% { background-position: 0% 50%; }
+                        50% { background-position: 100% 50%; }
+                        100% { background-position: 0% 50%; }
+                    }
+                `;
+                document.head.appendChild(style);
 
-            creditsContainer.appendChild(credits);
-            document.body.appendChild(creditsContainer);
+                creditsContainer.appendChild(credits);
+                document.body.appendChild(creditsContainer);
 
-            setTimeout(() => {
-                creditsContainer.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                creditsContainer.style.opacity = '0';
-                creditsContainer.style.transform = 'translateY(20px)';
-                setTimeout(() => creditsContainer.remove(), 500);
-            }, 5000);
+                setTimeout(() => {
+                    creditsContainer.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    creditsContainer.style.opacity = '0';
+                    creditsContainer.style.transform = 'translateY(20px)';
+                    setTimeout(() => {
+                        if (creditsContainer.parentNode) {
+                            creditsContainer.remove();
+                        }
+                    }, 500);
+                }, 5000);
+            } catch (e) {
+                this.consoleLog(`Erro ao mostrar créditos: ${e.message}`);
+            }
         }
 
         showTutorialArrow() {
-            // Verifica se é a primeira execução desta versão
-            if (localStorage.getItem(CONFIG.firstRunKey)) return;
+            try {
+                // Verifica se é a primeira execução desta versão
+                if (localStorage.getItem(CONFIG.firstRunKey)) return;
 
-            // Procura pelo painel de controle
-            const controlsContainer = document.getElementById(CONFIG.panelId);
-            if (!controlsContainer) return;
+                // Procura pelo painel de controle
+                const controlsContainer = document.getElementById(CONFIG.panelId);
+                if (!controlsContainer) return;
 
-            // Encontra o texto "Token Controls" ou o container
-            const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
-                span => span.textContent === 'Token Controls'
-            );
+                // Encontra o texto "Token Controls" ou o container
+                const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
+                    span => span.textContent === 'Token Controls'
+                );
 
-            const targetElement = tokenControlsText || controlsContainer;
-            const textRect = targetElement.getBoundingClientRect();
-            
-            // Ajusta o tamanho e posição da mensagem com base no dispositivo
-            const messageWidth = this.isMobile ? 180 : 220;
-            const messagePosition = this.isMobile ? 
-                { top: textRect.bottom + 10, left: textRect.left } : 
-                { top: textRect.top - 18, left: textRect.left - messageWidth + 60 };
+                const targetElement = tokenControlsText || controlsContainer;
+                const textRect = targetElement.getBoundingClientRect();
+                
+                // Ajusta o tamanho e posição da mensagem com base no dispositivo
+                const messageWidth = this.isMobile ? 180 : 220;
+                const messagePosition = this.isMobile ? 
+                    { top: textRect.bottom + 10, left: textRect.left } : 
+                    { top: textRect.top - 18, left: textRect.left - messageWidth + 60 };
 
-            const arrowContainer = document.createElement('div');
-            arrowContainer.style.cssText = `
-                position: fixed;
-                top: ${messagePosition.top}px;
-                left: ${messagePosition.left}px;
-                transform: ${this.isMobile ? 'none' : 'translateY(-50%)'};
-                z-index: 9999;
-                display: flex;
-                align-items: center;
-                flex-direction: ${this.isMobile ? 'column' : 'row'};
-                gap: 12px;
-                animation: bounceArrow 2s infinite;
-                pointer-events: none;
-            `;
+                const arrowContainer = document.createElement('div');
+                arrowContainer.style.cssText = `
+                    position: fixed;
+                    top: ${messagePosition.top}px;
+                    left: ${messagePosition.left}px;
+                    transform: ${this.isMobile ? 'none' : 'translateY(-50%)'};
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    flex-direction: ${this.isMobile ? 'column' : 'row'};
+                    gap: 12px;
+                    animation: bounceArrow 2s infinite;
+                    pointer-events: none;
+                `;
 
-            // Atualiza o estilo da mensagem
-            const message = document.createElement('div');
-            message.style.cssText = `
-                background: ${CONFIG.styles.colors.tutorial.background};
-                color: ${CONFIG.styles.colors.tutorial.text};
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: ${this.isMobile ? '11px' : CONFIG.styles.fontSize.medium};
-                font-weight: 500;
-                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-                max-width: ${messageWidth}px;
-                line-height: 1.4;
-                text-align: ${this.isMobile ? 'center' : 'right'};
-                letter-spacing: 0.3px;
-                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            `;
-            message.textContent = '🎉 O Token Maximizer agora funciona em dispositivos móveis!';
+                // Atualiza o estilo da mensagem
+                const message = document.createElement('div');
+                message.style.cssText = `
+                    background: ${CONFIG.styles.colors.tutorial.background};
+                    color: ${CONFIG.styles.colors.tutorial.text};
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    font-size: ${this.isMobile ? '11px' : CONFIG.styles.fontSize.medium};
+                    font-weight: 500;
+                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                    max-width: ${messageWidth}px;
+                    line-height: 1.4;
+                    text-align: ${this.isMobile ? 'center' : 'right'};
+                    letter-spacing: 0.3px;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                `;
+                message.textContent = '🎉 O Token Maximizer agora funciona em dispositivos móveis!';
 
-            // Atualiza a seta
-            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            arrow.setAttribute('width', this.isMobile ? '30' : '40');
-            arrow.setAttribute('height', this.isMobile ? '30' : '40');
-            arrow.setAttribute('viewBox', '0 0 24 24');
-            arrow.style.cssText = `
-                fill: none;
-                stroke: #ffffff;
-                stroke-width: 2.5;
-                stroke-linecap: round;
-                stroke-linejoin: round;
-                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-                transform: ${this.isMobile ? 'rotate(90deg)' : 'none'};
-            `;
+                // Atualiza a seta
+                const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                arrow.setAttribute('width', this.isMobile ? '30' : '40');
+                arrow.setAttribute('height', this.isMobile ? '30' : '40');
+                arrow.setAttribute('viewBox', '0 0 24 24');
+                arrow.style.cssText = `
+                    fill: none;
+                    stroke: #ffffff;
+                    stroke-width: 2.5;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+                    transform: ${this.isMobile ? 'rotate(90deg)' : 'none'};
+                `;
 
-            const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
-            arrow.appendChild(arrowPath);
+                const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
+                arrow.appendChild(arrowPath);
 
-            // Atualiza a animação
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes bounceArrow {
-                    0%, 100% { transform: translate${this.isMobile ? 'Y' : 'X'}(0); }
-                    50% { transform: translate${this.isMobile ? 'Y' : 'X'}(10px); }
+                // Atualiza a animação
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes bounceArrow {
+                        0%, 100% { transform: translate${this.isMobile ? 'Y' : 'X'}(0); }
+                        50% { transform: translate${this.isMobile ? 'Y' : 'X'}(10px); }
+                    }
+
+                    @keyframes fadeOut {
+                        from { opacity: 1; transform: translateY(0); }
+                        to { opacity: 0; transform: translateY(-10px); }
+                    }
+                `;
+                document.head.appendChild(style);
+
+                // Ajusta a ordem dos elementos com base no dispositivo
+                if (this.isMobile) {
+                    arrowContainer.append(message, arrow);
+                } else {
+                    arrowContainer.append(message, arrow);
                 }
+                
+                document.body.appendChild(arrowContainer);
 
-                @keyframes fadeOut {
-                    from { opacity: 1; transform: translateY(0); }
-                    to { opacity: 0; transform: translateY(-10px); }
-                }
-            `;
-            document.head.appendChild(style);
+                // Remove o tutorial após 10 segundos
+                setTimeout(() => {
+                    arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
+                    setTimeout(() => {
+                        if (arrowContainer.parentNode) {
+                            arrowContainer.remove();
+                        }
+                    }, 500);
+                }, 10000);
 
-            // Ajusta a ordem dos elementos com base no dispositivo
-            if (this.isMobile) {
-                arrowContainer.append(message, arrow);
-            } else {
-                arrowContainer.append(message, arrow);
+                // Marca como já exibido
+                localStorage.setItem(CONFIG.firstRunKey, 'true');
+            } catch (e) {
+                this.consoleLog(`Erro ao mostrar tutorial: ${e.message}`);
             }
-            
-            document.body.appendChild(arrowContainer);
-
-            // Remove o tutorial após 10 segundos
-            setTimeout(() => {
-                arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
-                setTimeout(() => arrowContainer.remove(), 500);
-            }, 10000);
-
-            // Marca como já exibido
-            localStorage.setItem(CONFIG.firstRunKey, 'true');
         }
 
         resetTutorial() {
-            localStorage.removeItem(CONFIG.firstRunKey);
-            this.log('Tutorial reset realizado com sucesso');
+            try {
+                localStorage.removeItem(CONFIG.firstRunKey);
+                this.log('Tutorial reset realizado com sucesso');
+            } catch (e) {
+                this.consoleLog(`Erro ao resetar tutorial: ${e.message}`);
+            }
         }
     }
 
     // Inicializa o Token Maximizer quando a página carregar
+    const tokenMaximizer = new TokenMaximizer();
+    
+    // Inicializa imediatamente para scripts que rodam no document-start
+    tokenMaximizer.init();
+    
+    // Também inicializa quando o DOM estiver pronto
     if (document.readyState === 'loading') {
-        window.addEventListener('load', () => new TokenMaximizer().init());
+        document.addEventListener('DOMContentLoaded', () => tokenMaximizer.init());
+        window.addEventListener('load', () => tokenMaximizer.init());
     } else {
-        new TokenMaximizer().init();
+        // DOM já está pronto
+        tokenMaximizer.init();
     }
 })();
