@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Chatbot Arena Token Maximizer
-// @namespace    https://github.com/seu-usuario/lmsys-token-maximizer
-// @version      2.5.0
+// @namespace    https://github.com/Brunexgmaer09/SSHPLUS/blob/main/imarena%20modifier
+// @version      2.7.0
 // @description  Enhanced token and temperature control for LMSYS Chat with a beautiful interface
 // @author       BrunexCoder
 // @match        *://lmarena.ai/*
@@ -21,16 +21,21 @@
     // Configurações globais
     const CONFIG = {
         initialTokens: 2048, // Valor inicial do site
-        defaultTokens: 4096, // Valor que queremos definir
+        defaultTokens: 4096, // Alterado para iniciar com 4K
         defaultTemp: 0.7,
         panelId: 'token-maximizer-controls',
         tokenOptions: [
             { value: 4096, label: '4K' },
             { value: 8192, label: '8K' },
-            { value: 56320, label: '56K' }
+            { value: 12000, label: '12K' },
+            { value: 56000, label: '56K' },
+            { value: 70000, label: '70K' },
+            { value: 130000, label: '130K' },
+            { value: 180000, label: '180K' },
+            { value: 200000, label: '200K' }
         ],
         // Sem restrições de modelos - todos podem usar qualquer token
-        firstRunKey: 'tokenMaximizer_firstRun_v5',
+        firstRunKey: 'tokenMaximizer_firstRun_v6',
         styles: {
             colors: {
                 primary: '#3b82f6',
@@ -69,13 +74,29 @@
     class TokenMaximizer {
         constructor() {
             this.initialized = false;
-            this.debugMode = /Android/.test(navigator.userAgent);
-            
+            this.debugMode = false; // Desabilitado o modo debug por padrão
+            this.isMobile = this.detectMobileDevice(); // Detecta se é dispositivo móvel
+            this.attemptCount = 0; // Contador de tentativas de inicialização
+            this.maxAttempts = 10; // Número máximo de tentativas
+
             // Inicializa com o valor padrão do site, mas será ajustado
             this.currentTokenValue = CONFIG.initialTokens;
-            
+
             // Armazena o modelo selecionado atualmente
             this.currentModel = null;
+        }
+
+        // Detecta se o dispositivo é móvel
+        detectMobileDevice() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            // Padrões para detectar dispositivos móveis
+            const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet|ipad|android|android 2|iphone|ipod|opera mini/i;
+            
+            // Verifica se a largura da tela é típica de dispositivos móveis
+            const isMobileWidth = window.innerWidth <= 768;
+            
+            return mobileRegex.test(userAgent) || isMobileWidth;
         }
 
         log(message, type = 'info') {
@@ -106,20 +127,116 @@
         // Inicializa o Token Maximizer
         init() {
             if (this.initialized) return;
-            this.initialized = true;
-
+            
             this.log('Iniciando Token Maximizer...');
             this.log(`User Agent: ${navigator.userAgent}`);
+            this.log(`Dispositivo móvel: ${this.isMobile ? 'Sim' : 'Não'}`);
+            this.log(`Largura da tela: ${window.innerWidth}px`);
+            
+            // Tenta inicializar várias vezes para garantir que os elementos estejam carregados
+            this.attemptInitialization();
+            
+            // Adiciona um listener para mudanças na orientação do dispositivo
+            window.addEventListener('resize', () => {
+                this.isMobile = this.detectMobileDevice();
+                this.refreshControls();
+            });
+        }
+        
+        // Tenta inicializar várias vezes
+        attemptInitialization() {
+            if (this.attemptCount >= this.maxAttempts || this.initialized) return;
+            
+            this.attemptCount++;
+            this.log(`Tentativa de inicialização ${this.attemptCount}/${this.maxAttempts}`);
+            
+            // Tenta diferentes métodos de inicialização
+            if (this.tryInitializeControls()) {
+                this.initialized = true;
+                this.setupMutationObserver();
+                this.showCredits();
+                this.setupModelObserver();
+                
+                setTimeout(() => {
+                    this.syncInitialValues();
+                    this.showTutorialArrow();
+                }, 1000);
+            } else {
+                // Tenta novamente após um intervalo
+                setTimeout(() => this.attemptInitialization(), 1000);
+            }
+        }
+        
+        // Tenta inicializar os controles usando diferentes métodos
+        tryInitializeControls() {
+            // Método 1: Procura pelo container do Direct Chat (método original)
+            const directChatButton = document.querySelector('button[aria-controls][class*="svelte"][role="tab"]:not([aria-disabled="true"]):not([aria-selected="false"])');
+            if (directChatButton && directChatButton.textContent.includes('Direct Chat')) {
+                const directChatId = directChatButton.getAttribute('aria-controls');
+                const chatContainer = document.getElementById(directChatId);
+                
+                if (chatContainer) {
+                    this.log('Método 1: Container do Direct Chat encontrado');
+                    this.insertControls(chatContainer);
+                    return true;
+                }
+            }
+            
+            // Método 2: Procura pelo container de chat principal
+            const chatContainers = document.querySelectorAll('div[class*="chat"], div[class*="conversation"], main');
+            for (const container of chatContainers) {
+                // Verifica se o container tem elementos de chat
+                const hasTextareas = container.querySelectorAll('textarea').length > 0;
+                const hasInputs = container.querySelectorAll('input[type="text"]').length > 0;
+                
+                if (hasTextareas || hasInputs) {
+                    this.log('Método 2: Container de chat encontrado');
+                    this.insertControls(container);
+                    return true;
+                }
+            }
+            
+            // Método 3: Procura por elementos específicos do site
+            const modelSelectors = document.querySelectorAll('select, div[role="listbox"], input[role="listbox"]');
+            if (modelSelectors.length > 0) {
+                const container = modelSelectors[0].closest('main') || modelSelectors[0].closest('div[class*="chat"]');
+                if (container) {
+                    this.log('Método 3: Container baseado em seletores de modelo encontrado');
+                    this.insertControls(container);
+                    return true;
+                }
+            }
+            
+            // Método 4: Último recurso - insere no body
+            if (this.attemptCount >= this.maxAttempts - 1) {
+                this.log('Método 4: Inserindo no body como último recurso');
+                const bodyContainer = document.createElement('div');
+                bodyContainer.id = 'token-maximizer-body-container';
+                bodyContainer.style.cssText = `
+                    position: fixed;
+                    top: 10px;
+                    left: 10px;
+                    z-index: 9999;
+                    width: ${this.isMobile ? 'calc(100% - 20px)' : '400px'};
+                `;
+                document.body.appendChild(bodyContainer);
+                this.insertControls(bodyContainer);
+                return true;
+            }
+            
+            return false;
+        }
 
-            this.setupInitialLoad();
-            this.setupMutationObserver();
-            this.showCredits();
-            this.setupModelObserver();
-
-            setTimeout(() => {
-                this.syncInitialValues();
-                this.showTutorialArrow();
-            }, 2000);
+        // Atualiza os controles quando necessário
+        refreshControls() {
+            const existingControls = document.getElementById(CONFIG.panelId);
+            if (existingControls) {
+                const parent = existingControls.parentElement;
+                existingControls.remove();
+                if (parent) {
+                    this.insertControls(parent);
+                }
+            }
         }
 
         // Sincroniza os valores iniciais com os do site
@@ -132,14 +249,14 @@
                 if (!isNaN(actualValue) && actualValue > 0) {
                     this.log(`Valor inicial de tokens no site: ${actualValue}`);
                     this.currentTokenValue = actualValue;
-                    
+
                     // Se o valor for menor que o padrão que queremos, ajusta para o nosso padrão
                     if (actualValue < CONFIG.defaultTokens) {
                         this.setTokenValue(CONFIG.defaultTokens);
                     }
                 }
             }
-            
+
             // Detecta o modelo atual
             this.detectCurrentModel();
         }
@@ -147,8 +264,8 @@
         // Detecta o modelo atual e ajusta os tokens
         detectCurrentModel() {
             // Procura pelos dropdowns de seleção de modelo
-            const modelDropdowns = Array.from(document.querySelectorAll('input[role="listbox"]'));
-            
+            const modelDropdowns = Array.from(document.querySelectorAll('input[role="listbox"], select[aria-label*="model"]'));
+
             if (modelDropdowns.length > 0) {
                 // Pega o valor do primeiro dropdown
                 const modelValue = modelDropdowns[0].value;
@@ -166,7 +283,7 @@
                 for (const mutation of mutations) {
                     if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
                         const target = mutation.target;
-                        if (target.getAttribute('role') === 'listbox') {
+                        if (target.getAttribute('role') === 'listbox' || target.tagName === 'SELECT') {
                             const modelValue = target.value;
                             if (modelValue && modelValue !== this.currentModel) {
                                 this.log(`Modelo alterado para: ${modelValue}`);
@@ -176,14 +293,14 @@
                     }
                 }
             });
-            
+
             // Configuração para observer ficar atento à mudanças nos dropdowns
             setTimeout(() => {
-                const modelDropdowns = document.querySelectorAll('input[role="listbox"]');
+                const modelDropdowns = document.querySelectorAll('input[role="listbox"], select[aria-label*="model"]');
                 modelDropdowns.forEach(dropdown => {
-                    modelObserver.observe(dropdown, { 
+                    modelObserver.observe(dropdown, {
                         attributes: true,
-                        attributeFilter: ['value'] 
+                        attributeFilter: ['value']
                     });
                 });
             }, 3000);
@@ -197,7 +314,7 @@
                 buttons.forEach(btn => {
                     const tokenValue = parseInt(btn.dataset.value);
                     const isActive = tokenValue === this.currentTokenValue;
-                    
+
                     btn.style.background = isActive ? CONFIG.styles.colors.primary : 'transparent';
                     btn.style.color = isActive ? '#ffffff' : CONFIG.styles.colors.text;
                     btn.style.borderColor = isActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border;
@@ -211,35 +328,15 @@
             }
         }
 
-        // Configura o carregamento inicial
-        setupInitialLoad() {
-            const attempts = [0, 500, 1000, 2000];
-            attempts.forEach(delay => setTimeout(() => {
-                // Procura especificamente pelo container do Direct Chat
-                const directChatButton = document.querySelector('button[aria-controls][class*="svelte"][role="tab"]:not([aria-disabled="true"]):not([aria-selected="false"])');
-                if (directChatButton && directChatButton.textContent.includes('Direct Chat')) {
-                    const directChatId = directChatButton.getAttribute('aria-controls');
-                    const chatContainer = document.getElementById(directChatId);
-
-                    if (chatContainer) {
-                        this.insertControls(chatContainer);
-                    }
-                }
-            }, delay));
-        }
-
         // Configura o observer para mudanças na página
         setupMutationObserver() {
             const observer = new MutationObserver(() => {
-                // Procura especificamente pelo container do Direct Chat
-                const directChatButton = document.querySelector('button[aria-controls][class*="svelte"][role="tab"]:not([aria-disabled="true"]):not([aria-selected="false"])');
-                if (directChatButton && directChatButton.textContent.includes('Direct Chat')) {
-                    const directChatId = directChatButton.getAttribute('aria-controls');
-                    const chatContainer = document.getElementById(directChatId);
-
-                    if (chatContainer && !document.getElementById(CONFIG.panelId)) {
-                        setTimeout(() => this.insertControls(chatContainer), 100);
-                    }
+                // Verifica se os controles existem
+                if (!document.getElementById(CONFIG.panelId)) {
+                    // Tenta inicializar novamente
+                    this.attemptCount = 0;
+                    this.initialized = false;
+                    this.attemptInitialization();
                 }
             });
 
@@ -257,22 +354,47 @@
 
             const controlsContainer = document.createElement('div');
             controlsContainer.id = CONFIG.panelId;
-            controlsContainer.style.cssText = `
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                padding: 16px;
-                margin: 8px 0;
-                border-radius: 12px;
-                background: ${CONFIG.styles.colors.background};
-                border: 1px solid ${CONFIG.styles.colors.border};
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-                transition: all 0.3s ease;
-            `;
+            
+            // Layout responsivo baseado no tipo de dispositivo
+            if (this.isMobile) {
+                controlsContainer.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    padding: 12px;
+                    margin: 8px 0;
+                    border-radius: 12px;
+                    background: ${CONFIG.styles.colors.background};
+                    border: 1px solid ${CONFIG.styles.colors.border};
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+                    transition: all 0.3s ease;
+                    width: calc(100% - 24px);
+                `;
+            } else {
+                controlsContainer.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                    padding: 16px;
+                    margin: 8px 0;
+                    border-radius: 12px;
+                    background: ${CONFIG.styles.colors.background};
+                    border: 1px solid ${CONFIG.styles.colors.border};
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+                    transition: all 0.3s ease;
+                `;
+            }
 
             // Título com ícone e estilo do site
             const titleContainer = document.createElement('div');
-            titleContainer.style.cssText = `
+            titleContainer.style.cssText = this.isMobile ? `
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid ${CONFIG.styles.colors.border};
+            ` : `
                 display: flex;
                 align-items: center;
                 gap: 8px;
@@ -296,7 +418,12 @@
 
             // Container para os controles
             const controlsWrapper = document.createElement('div');
-            controlsWrapper.style.cssText = `
+            controlsWrapper.style.cssText = this.isMobile ? `
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                flex-grow: 1;
+            ` : `
                 display: flex;
                 align-items: center;
                 gap: 16px;
@@ -316,8 +443,14 @@
 
             controlsWrapper.append(tokenControl, tempControl);
             controlsContainer.append(titleContainer, controlsWrapper);
-            targetElement.insertBefore(controlsContainer, targetElement.firstChild);
             
+            // Insere no início do elemento alvo
+            if (targetElement.firstChild) {
+                targetElement.insertBefore(controlsContainer, targetElement.firstChild);
+            } else {
+                targetElement.appendChild(controlsContainer);
+            }
+
             // Detecta o modelo atual
             setTimeout(() => this.detectCurrentModel(), 500);
         }
@@ -365,16 +498,21 @@
             const buttonsRow = document.createElement('div');
             buttonsRow.style.cssText = `
                 display: flex;
+                flex-wrap: wrap;
                 gap: 8px;
                 margin-top: 4px;
             `;
 
+            // Ajusta o número de botões por linha com base no dispositivo
+            const buttonsPerRow = this.isMobile ? 4 : CONFIG.tokenOptions.length;
+            const buttonWidth = this.isMobile ? `calc(25% - 6px)` : `calc(100% / ${CONFIG.tokenOptions.length} - 8px)`;
+
             CONFIG.tokenOptions.forEach(option => {
                 const button = document.createElement('button');
                 const isActive = this.currentTokenValue === option.value;
-                
+
                 button.style.cssText = `
-                    flex: 1;
+                    flex: 0 0 ${buttonWidth};
                     padding: 4px 0;
                     border-radius: 6px;
                     font-size: ${CONFIG.styles.fontSize.small};
@@ -386,24 +524,24 @@
                     border: 1px solid ${isActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border};
                     outline: none;
                 `;
-                
+
                 button.textContent = option.label;
-                
+
                 button.addEventListener('mouseover', () => {
                     if (!isActive) {
                         button.style.background = `${CONFIG.styles.colors.primaryLight}20`;
                     }
                 });
-                
+
                 button.addEventListener('mouseout', () => {
                     if (!isActive) {
                         button.style.background = 'transparent';
                     }
                 });
-                
+
                 button.addEventListener('click', () => {
                     this.setTokenValue(option.value);
-                    
+
                     // Atualiza a aparência de todos os botões
                     buttonsRow.querySelectorAll('button').forEach(btn => {
                         const isNowActive = parseInt(btn.dataset.value) === this.currentTokenValue;
@@ -411,10 +549,10 @@
                         btn.style.color = isNowActive ? '#ffffff' : CONFIG.styles.colors.text;
                         btn.style.borderColor = isNowActive ? CONFIG.styles.colors.primary : CONFIG.styles.colors.border;
                     });
-                    
+
                     // Atualiza o valor exibido
                     valueLabel.textContent = this.currentTokenValue.toLocaleString();
-                    
+
                     // Adiciona uma animação ao valor
                     valueLabel.style.transform = 'scale(1.1)';
                     valueLabel.style.color = CONFIG.styles.colors.primary;
@@ -423,7 +561,7 @@
                         valueLabel.style.color = CONFIG.styles.colors.text;
                     }, 200);
                 });
-                
+
                 button.dataset.value = option.value;
                 buttonsRow.appendChild(button);
             });
@@ -439,7 +577,15 @@
 
         createCompactControl(label, type, options, onChange) {
             const container = document.createElement('div');
-            container.style.cssText = `
+            container.style.cssText = this.isMobile ? `
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding: 8px 12px;
+                background: ${CONFIG.styles.colors.secondaryBg};
+                border-radius: 8px;
+                flex: 1;
+            ` : `
                 display: flex;
                 align-items: center;
                 gap: 12px;
@@ -573,7 +719,24 @@
             });
 
             inputWrapper.append(input, valueLabel);
-            container.append(labelElement, inputWrapper);
+            
+            // Layout responsivo para dispositivos móveis
+            if (this.isMobile) {
+                const labelRow = document.createElement('div');
+                labelRow.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+                labelRow.append(labelElement, valueLabel.cloneNode(true));
+                container.append(labelRow, inputWrapper);
+                
+                // Remove o valueLabel original do inputWrapper
+                inputWrapper.removeChild(valueLabel);
+            } else {
+                container.append(labelElement, inputWrapper);
+            }
+            
             return container;
         }
 
@@ -648,8 +811,8 @@
             const creditsContainer = document.createElement('div');
             creditsContainer.style.cssText = `
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
+                bottom: ${this.isMobile ? '10px' : '20px'};
+                right: ${this.isMobile ? '10px' : '20px'};
                 padding: 2px; /* Espaço para a borda RGB */
                 border-radius: 10px;
                 background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff, #ff0000);
@@ -657,14 +820,14 @@
                 animation: gradientBorder 3s ease infinite;
                 z-index: 9999;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                font-size: ${this.isMobile ? '10px' : CONFIG.styles.fontSize.small};
             `;
 
             credits.style.cssText = `
                 background: ${CONFIG.styles.colors.background};
                 color: ${CONFIG.styles.colors.text};
-                padding: 10px 15px;
+                padding: ${this.isMobile ? '8px 12px' : '10px 15px'};
                 border-radius: 8px;
-                font-size: ${CONFIG.styles.fontSize.small};
                 font-weight: bold;
                 text-align: center;
             `;
@@ -695,104 +858,108 @@
             // Verifica se é a primeira execução desta versão
             if (localStorage.getItem(CONFIG.firstRunKey)) return;
 
-            // Observa cliques especificamente no botão Direct Chat
-            const directChatButton = document.querySelector('button[aria-controls][class*="svelte"][role="tab"]:not([aria-disabled="true"]):not([aria-selected="false"])');
-            if (directChatButton && directChatButton.textContent.includes('Direct Chat')) {
-                directChatButton.addEventListener('click', () => {
-                    setTimeout(() => {
-                        // Encontra o texto "Token Controls" ou o container
-                        const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
-                            span => span.textContent === 'Token Controls'
-                        );
+            // Procura pelo painel de controle
+            const controlsContainer = document.getElementById(CONFIG.panelId);
+            if (!controlsContainer) return;
 
-                        const controlsContainer = document.getElementById(CONFIG.panelId);
+            // Encontra o texto "Token Controls" ou o container
+            const tokenControlsText = Array.from(document.querySelectorAll('span')).find(
+                span => span.textContent === 'Token Controls'
+            );
 
-                        if (!tokenControlsText && !controlsContainer) return;
+            const targetElement = tokenControlsText || controlsContainer;
+            const textRect = targetElement.getBoundingClientRect();
+            
+            // Ajusta o tamanho e posição da mensagem com base no dispositivo
+            const messageWidth = this.isMobile ? 180 : 220;
+            const messagePosition = this.isMobile ? 
+                { top: textRect.bottom + 10, left: textRect.left } : 
+                { top: textRect.top - 18, left: textRect.left - messageWidth + 60 };
 
-                        const targetElement = tokenControlsText || controlsContainer;
-                        const textRect = targetElement.getBoundingClientRect();
-                        const messageWidth = 220;
+            const arrowContainer = document.createElement('div');
+            arrowContainer.style.cssText = `
+                position: fixed;
+                top: ${messagePosition.top}px;
+                left: ${messagePosition.left}px;
+                transform: ${this.isMobile ? 'none' : 'translateY(-50%)'};
+                z-index: 9999;
+                display: flex;
+                align-items: center;
+                flex-direction: ${this.isMobile ? 'column' : 'row'};
+                gap: 12px;
+                animation: bounceArrow 2s infinite;
+                pointer-events: none;
+            `;
 
-                        const arrowContainer = document.createElement('div');
-                        arrowContainer.style.cssText = `
-                            position: fixed;
-                            top: ${textRect.top - 18}px;
-                            left: ${textRect.left - messageWidth + 60}px;
-                            transform: translateY(-50%);
-                            z-index: 9999;
-                            display: flex;
-                            align-items: center;
-                            gap: 12px;
-                            animation: bounceArrow 2s infinite;
-                            pointer-events: none;
-                        `;
+            // Atualiza o estilo da mensagem
+            const message = document.createElement('div');
+            message.style.cssText = `
+                background: ${CONFIG.styles.colors.tutorial.background};
+                color: ${CONFIG.styles.colors.tutorial.text};
+                padding: 12px 16px;
+                border-radius: 8px;
+                font-size: ${this.isMobile ? '11px' : CONFIG.styles.fontSize.medium};
+                font-weight: 500;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                max-width: ${messageWidth}px;
+                line-height: 1.4;
+                text-align: ${this.isMobile ? 'center' : 'right'};
+                letter-spacing: 0.3px;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            `;
+            message.textContent = '🎉 O Token Maximizer agora funciona em dispositivos móveis!';
 
-                        // Atualiza o estilo da mensagem
-                        const message = document.createElement('div');
-                        message.style.cssText = `
-                            background: ${CONFIG.styles.colors.tutorial.background};
-                            color: ${CONFIG.styles.colors.tutorial.text};
-                            padding: 12px 16px;
-                            border-radius: 8px;
-                            font-size: ${CONFIG.styles.fontSize.medium};
-                            font-weight: 500;
-                            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-                            max-width: ${messageWidth}px;
-                            line-height: 1.4;
-                            text-align: right;
-                            letter-spacing: 0.3px;
-                            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-                        `;
-                        message.textContent = '🎉 O Token Maximizer agora permite usar 56K tokens em qualquer modelo!';
+            // Atualiza a seta
+            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            arrow.setAttribute('width', this.isMobile ? '30' : '40');
+            arrow.setAttribute('height', this.isMobile ? '30' : '40');
+            arrow.setAttribute('viewBox', '0 0 24 24');
+            arrow.style.cssText = `
+                fill: none;
+                stroke: #ffffff;
+                stroke-width: 2.5;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+                transform: ${this.isMobile ? 'rotate(90deg)' : 'none'};
+            `;
 
-                        // Atualiza a seta
-                        const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                        arrow.setAttribute('width', '40');
-                        arrow.setAttribute('height', '40');
-                        arrow.setAttribute('viewBox', '0 0 24 24');
-                        arrow.style.cssText = `
-                            fill: none;
-                            stroke: #ffffff;
-                            stroke-width: 2.5;
-                            stroke-linecap: round;
-                            stroke-linejoin: round;
-                            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-                        `;
+            const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
+            arrow.appendChild(arrowPath);
 
-                        const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                        arrowPath.setAttribute('d', 'M5 12h14m-7-7l7 7-7 7');
-                        arrow.appendChild(arrowPath);
+            // Atualiza a animação
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes bounceArrow {
+                    0%, 100% { transform: translate${this.isMobile ? 'Y' : 'X'}(0); }
+                    50% { transform: translate${this.isMobile ? 'Y' : 'X'}(10px); }
+                }
 
-                        // Atualiza a animação
-                        const style = document.createElement('style');
-                        style.textContent = `
-                            @keyframes bounceArrow {
-                                0%, 100% { transform: translateX(0); }
-                                50% { transform: translateX(10px); }
-                            }
+                @keyframes fadeOut {
+                    from { opacity: 1; transform: translateY(0); }
+                    to { opacity: 0; transform: translateY(-10px); }
+                }
+            `;
+            document.head.appendChild(style);
 
-
-                            @keyframes fadeOut {
-                                from { opacity: 1; transform: translateY(0); }
-                                to { opacity: 0; transform: translateY(-10px); }
-                            }
-                        `;
-                        document.head.appendChild(style);
-
-                        arrowContainer.append(message, arrow);
-                        document.body.appendChild(arrowContainer);
-
-                        // Remove o tutorial após 10 segundos
-                        setTimeout(() => {
-                            arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
-                            setTimeout(() => arrowContainer.remove(), 500);
-                        }, 10000);
-
-                        // Marca como já exibido
-                        localStorage.setItem(CONFIG.firstRunKey, 'true');
-                    }, 500); // Delay para garantir que os elementos estejam carregados
-                }, { once: true }); // Garante que o evento só seja disparado uma vez
+            // Ajusta a ordem dos elementos com base no dispositivo
+            if (this.isMobile) {
+                arrowContainer.append(message, arrow);
+            } else {
+                arrowContainer.append(message, arrow);
             }
+            
+            document.body.appendChild(arrowContainer);
+
+            // Remove o tutorial após 10 segundos
+            setTimeout(() => {
+                arrowContainer.style.animation = 'fadeOut 0.5s ease forwards';
+                setTimeout(() => arrowContainer.remove(), 500);
+            }, 10000);
+
+            // Marca como já exibido
+            localStorage.setItem(CONFIG.firstRunKey, 'true');
         }
 
         resetTutorial() {
